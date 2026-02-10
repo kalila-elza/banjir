@@ -71,7 +71,11 @@ akurasi = accuracy_score(y_test, y_pred)
 cm = confusion_matrix(y_test, y_pred)
 
 st.set_page_config(page_title="Prediksi Banjir Dayeuhkolot", layout="centered")
-
+try:
+    st.image("Dayeuhkolot.jpg", use_container_width=True)
+except Exception as e:
+    st.warning("⚠️ Gambar tidak ditemukan. Pastikan nama file 'daleuhkolot.jpy' benar atau ganti ekstensinya ke .jpg/.png")
+    
 st.title(" Prediksi Potensi Banjir")
 st.write("Aplikasi ini memprediksi potensi banjir berdasarkan parameter lingkungan.")
 
