@@ -72,7 +72,7 @@ cm = confusion_matrix(y_test, y_pred)
 
 st.set_page_config(page_title="Prediksi Banjir Dayeuhkolot", layout="centered")
 
-st.title("🌊 Prediksi Potensi Banjir")
+st.title(" Prediksi Potensi Banjir")
 st.write("Aplikasi ini memprediksi potensi banjir berdasarkan parameter lingkungan.")
 
 # Tampilkan Statistik Model
@@ -85,7 +85,7 @@ with col2:
 
 st.divider()
 
-st.subheader("🧮 Input Data Lingkungan")
+st.subheader(" Input Data Lingkungan")
 
 # Form Input
 kecamatan_select = st.selectbox(
