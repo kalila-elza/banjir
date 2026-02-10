@@ -4,9 +4,6 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, confusion_matrix
 
-# ==============================
-# LOAD & CLEAN DATA
-# ==============================
 @st.cache_data
 def load_data():
     # Load data
@@ -53,17 +50,11 @@ def load_data():
 # Memanggil fungsi load data
 df, kecamatan_mapping = load_data()
 
-# ==============================
-# FITUR & TARGET
-# ==============================
 # Gunakan fitur yang sudah dibersihkan
 features = ["Kecamatan_Enc", "Curah Hujan", "Debit Air", "Muka Air", "Tinggi Banjir"]
 X = df[features]
 y = df["Banjir Ya/Tidak"].astype(int)
 
-# ==============================
-# TRAIN MODEL
-# ==============================
 X_train, X_test, y_train, y_test = train_test_split(
     X, y,
     test_size=0.2,
@@ -79,9 +70,6 @@ y_pred = model.predict(X_test)
 akurasi = accuracy_score(y_test, y_pred)
 cm = confusion_matrix(y_test, y_pred)
 
-# ==============================
-# STREAMLIT UI
-# ==============================
 st.set_page_config(page_title="Prediksi Banjir Dayeuhkolot", layout="centered")
 
 st.title("🌊 Prediksi Potensi Banjir")
