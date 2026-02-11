@@ -7,18 +7,12 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, confusion_matrix
 
-# ==============================
-# 1. KONFIGURASI HALAMAN
-# ==============================
 st.set_page_config(
     page_title="Prediksi Banjir Dayeuhkolot",
     layout="centered",
     initial_sidebar_state="expanded"
 )
 
-# ==============================
-# 2. LOAD & CLEAN DATA
-# ==============================
 @st.cache_data
 def load_data():
     try:
@@ -56,9 +50,6 @@ df, kecamatan_mapping = load_data()
 if df.empty:
     st.stop()
 
-# ==============================
-# 3. TRAINING MODEL
-# ==============================
 features = ["Kecamatan_Enc", "Curah Hujan", "Debit Air", "Muka Air", "Tinggi Banjir"]
 X = df[features]
 y = df["Banjir Ya/Tidak"].astype(int)
@@ -75,9 +66,6 @@ y_pred = model.predict(X_test)
 akurasi = accuracy_score(y_test, y_pred)
 cm = confusion_matrix(y_test, y_pred)
 
-# ==============================
-# 4. UI: HEADER & GAMBAR
-# ==============================
 try:
     st.image("Dayeuhkolot.jpg", use_container_width=True)
 except:
@@ -86,9 +74,6 @@ except:
 st.title("Sistem Peringatan Dini Banjir")
 st.markdown("---")
 
-# ==============================
-# 5. FITUR: KONDISI SAAT INI (REAL-TIME SIMULATION)
-# ==============================
 st.subheader("Kondisi Real-time (Simulasi)")
 
 if st.button("Cek Kondisi Terkini dari BMKG (Simulasi)"):
@@ -110,12 +95,10 @@ if st.button("Cek Kondisi Terkini dari BMKG (Simulasi)"):
         sim_debit = random.uniform(100, 200)
         sim_muka  = random.uniform(6.0, 8.0)
         sim_tinggi = random.uniform(0.3, 1.2)
-    
-    # --- PERBAIKAN WAKTU DI SINI ---
-    # Mengambil waktu UTC dan menambah 7 jam untuk WIB
+
     wib_now = datetime.utcnow() + timedelta(hours=7)
     
-    # Format Bahasa Indonesia manual sederhana
+
     bulan_indo = {
         1: 'Januari', 2: 'Februari', 3: 'Maret', 4: 'April', 5: 'Mei', 6: 'Juni',
         7: 'Juli', 8: 'Agustus', 9: 'September', 10: 'Oktober', 11: 'November', 12: 'Desember'
@@ -142,7 +125,6 @@ if st.button("Cek Kondisi Terkini dari BMKG (Simulasi)"):
         status_text = "AMAN / TIDAK BANJIR"
         status_color = "#09ab3b" # Hijau Streamlit
         bg_color = "#e8fdf0"
-        icon = "✅"
     
     st.markdown(f"""
     <div style="padding: 15px; border-radius: 10px; background-color: {bg_color}; border: 1px solid {status_color};">
@@ -162,10 +144,6 @@ if st.button("Cek Kondisi Terkini dari BMKG (Simulasi)"):
     k4.metric("Tinggi Genangan", f"{sim_tinggi:.2f} m")
 
 st.divider()
-
-# ==============================
-# 6. UI: INPUT MANUAL
-# ==============================
 st.subheader("Prediksi Manual")
 st.write("Masukkan parameter di bawah ini untuk melakukan prediksi manual.")
 
