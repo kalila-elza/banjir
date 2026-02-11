@@ -7,18 +7,12 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, confusion_matrix
 
-# ==============================
-# 1. KONFIGURASI HALAMAN (HARUS DI PALING ATAS)
-# ==============================
 st.set_page_config(
     page_title="Prediksi Banjir Dayeuhkolot",
     layout="centered",
     initial_sidebar_state="expanded"
 )
 
-# ==============================
-# 2. LOAD & CLEAN DATA
-# ==============================
 @st.cache_data
 def load_data():
     try:
@@ -57,9 +51,6 @@ df, kecamatan_mapping = load_data()
 if df.empty:
     st.stop()
 
-# ==============================
-# 3. TRAINING MODEL
-# ==============================
 features = ["Kecamatan_Enc", "Curah Hujan", "Debit Air", "Muka Air", "Tinggi Banjir"]
 X = df[features]
 y = df["Banjir Ya/Tidak"].astype(int)
@@ -76,10 +67,6 @@ y_pred = model.predict(X_test)
 akurasi = accuracy_score(y_test, y_pred)
 cm = confusion_matrix(y_test, y_pred)
 
-# ==============================
-# 4. UI: HEADER & GAMBAR
-# ==============================
-# Tampilkan gambar jika ada
 try:
     # Coba berbagai kemungkinan nama file/ekstensi
     st.image("Dayeuhkolot.jpg", use_container_width=True)
@@ -89,13 +76,10 @@ except:
 st.title("🌊 Sistem Peringatan Dini Banjir")
 st.markdown("---")
 
-# ==============================
-# 5. FITUR: KONDISI SAAT INI (REAL-TIME SIMULATION)
-# ==============================
-st.subheader("🌍 Kondisi Real-time (Simulasi)")
+st.subheader("Kondisi Real-time (Simulasi)")
 
 # Tombol untuk mensimulasikan data cuaca terkini
-if st.button("🔄 Cek Kondisi Terkini dari BMKG (Simulasi)"):
+if st.button("Cek Kondisi Terkini dari BMKG (Simulasi)"):
     # 1. Generate Data Random yang Masuk Akal (berdasarkan statistik data asli)
     # Kita buat 3 skenario: Aman (70%), Waspada (20%), Bahaya (10%)
     skenario = np.random.choice(['Aman', 'Waspada', 'Bahaya'], p=[0.7, 0.2, 0.1])
@@ -144,7 +128,7 @@ if st.button("🔄 Cek Kondisi Terkini dari BMKG (Simulasi)"):
     else:
         status_text = "AMAN / TIDAK BANJIR"
         status_color = "green"
-        icon = "✅"
+        icon = ""
     
     # Tampilkan Hasil dengan Format yang diminta
     st.markdown(f"""
@@ -152,8 +136,8 @@ if st.button("🔄 Cek Kondisi Terkini dari BMKG (Simulasi)"):
         <h3 style="color: {status_color}; margin:0;">{icon} Status: {status_text}</h3>
         <p style="font-size: 16px; margin-top: 10px;">
             <b>Kondisi Kecamatan {nama_kec} saat ini {status_text.lower()}.</b><br>
-            📅 Tanggal: {tgl_str} <br>
-            ⏰ Jam: {jam_str}
+             Tanggal: {tgl_str} <br>
+             Jam: {jam_str}
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -167,10 +151,7 @@ if st.button("🔄 Cek Kondisi Terkini dari BMKG (Simulasi)"):
 
 st.divider()
 
-# ==============================
-# 6. UI: INPUT MANUAL
-# ==============================
-st.subheader("🧮 Prediksi Manual")
+st.subheader("Prediksi Manual")
 st.write("Masukkan parameter di bawah ini untuk melakukan prediksi manual.")
 
 # Statistik Model
@@ -209,5 +190,5 @@ if st.button("🔍 Jalankan Prediksi Manual", use_container_width=True):
         st.error(f"⚠️ **POTENSI BANJIR TINGGI** (Probabilitas: {probability:.2%})")
         st.warning("Mohon waspada dan pantau informasi dari pihak terkait.")
     else:
-        st.success(f"✅ **TIDAK ADA POTENSI BANJIR** (Probabilitas: {probability:.2%})")
+        st.success(f" **TIDAK ADA POTENSI BANJIR** (Probabilitas: {probability:.2%})")
         st.info("Kondisi saat ini diprediksi aman.")
