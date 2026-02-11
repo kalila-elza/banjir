@@ -125,6 +125,7 @@ if st.button("Cek Kondisi Terkini dari BMKG (Simulasi)"):
         status_text = "AMAN / TIDAK BANJIR"
         status_color = "#09ab3b" # Hijau Streamlit
         bg_color = "#e8fdf0"
+        icon = "✅"
     
     st.markdown(f"""
     <div style="padding: 15px; border-radius: 10px; background-color: {bg_color}; border: 1px solid {status_color};">
