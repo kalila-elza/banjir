@@ -2,17 +2,23 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import random
-import datetime
+from datetime import datetime, timedelta
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, confusion_matrix
 
+# ==============================
+# 1. KONFIGURASI HALAMAN
+# ==============================
 st.set_page_config(
     page_title="Prediksi Banjir Dayeuhkolot",
     layout="centered",
     initial_sidebar_state="expanded"
 )
 
+# ==============================
+# 2. LOAD & CLEAN DATA
+# ==============================
 @st.cache_data
 def load_data():
     try:
@@ -47,10 +53,12 @@ def load_data():
 
 df, kecamatan_mapping = load_data()
 
-# Jika data kosong, hentikan eksekusi
 if df.empty:
     st.stop()
 
+# ==============================
+# 3. TRAINING MODEL
+# ==============================
 features = ["Kecamatan_Enc", "Curah Hujan", "Debit Air", "Muka Air", "Tinggi Banjir"]
 X = df[features]
 y = df["Banjir Ya/Tidak"].astype(int)
@@ -67,101 +75,106 @@ y_pred = model.predict(X_test)
 akurasi = accuracy_score(y_test, y_pred)
 cm = confusion_matrix(y_test, y_pred)
 
+# ==============================
+# 4. UI: HEADER & GAMBAR
+# ==============================
 try:
-    # Coba berbagai kemungkinan nama file/ekstensi
     st.image("Dayeuhkolot.jpg", use_container_width=True)
 except:
-    pass # Jika tidak ada gambar, skip saja
+    pass
 
-st.title("🌊 Sistem Peringatan Dini Banjir")
+st.title("Sistem Peringatan Dini Banjir")
 st.markdown("---")
 
+# ==============================
+# 5. FITUR: KONDISI SAAT INI (REAL-TIME SIMULATION)
+# ==============================
 st.subheader("Kondisi Real-time (Simulasi)")
 
-# Tombol untuk mensimulasikan data cuaca terkini
 if st.button("Cek Kondisi Terkini dari BMKG (Simulasi)"):
-    # 1. Generate Data Random yang Masuk Akal (berdasarkan statistik data asli)
-    # Kita buat 3 skenario: Aman (70%), Waspada (20%), Bahaya (10%)
+    # 1. Generate Data Random
     skenario = np.random.choice(['Aman', 'Waspada', 'Bahaya'], p=[0.7, 0.2, 0.1])
     
     if skenario == 'Aman':
-        # Curah hujan rendah, debit normal
         sim_hujan = random.uniform(0, 10)
         sim_debit = random.uniform(20, 60)
         sim_muka  = random.uniform(2.0, 4.5)
         sim_tinggi = 0.0
     elif skenario == 'Waspada':
-        # Hujan sedang, debit mulai naik
         sim_hujan = random.uniform(10, 50)
         sim_debit = random.uniform(60, 100)
         sim_muka  = random.uniform(4.5, 6.0)
         sim_tinggi = random.uniform(0.0, 0.3)
-    else: # Bahaya
-        # Hujan lebat, debit tinggi
+    else:
         sim_hujan = random.uniform(50, 110)
         sim_debit = random.uniform(100, 200)
         sim_muka  = random.uniform(6.0, 8.0)
         sim_tinggi = random.uniform(0.3, 1.2)
     
-    # Ambil waktu sekarang
-    now = datetime.datetime.now()
-    tgl_str = now.strftime("%d %B %Y")
-    jam_str = now.strftime("%H:%M WIB")
+    # --- PERBAIKAN WAKTU DI SINI ---
+    # Mengambil waktu UTC dan menambah 7 jam untuk WIB
+    wib_now = datetime.utcnow() + timedelta(hours=7)
     
-    # Pilih satu kecamatan (misal default Dayeuhkolot atau random)
+    # Format Bahasa Indonesia manual sederhana
+    bulan_indo = {
+        1: 'Januari', 2: 'Februari', 3: 'Maret', 4: 'April', 5: 'Mei', 6: 'Juni',
+        7: 'Juli', 8: 'Agustus', 9: 'September', 10: 'Oktober', 11: 'November', 12: 'Desember'
+    }
+    
+    tgl_str = f"{wib_now.day} {bulan_indo[wib_now.month]} {wib_now.year}"
+    jam_str = wib_now.strftime("%H:%M WIB")
+    
     nama_kec = list(kecamatan_mapping.keys())[0]
     kode_kec = kecamatan_mapping[nama_kec]
     
-    # Prediksi menggunakan model
     input_sim = pd.DataFrame([[
         kode_kec, sim_hujan, sim_debit, sim_muka, sim_tinggi
     ]], columns=features)
     
     pred_sim = model.predict(input_sim)[0]
-    prob_sim = model.predict_proba(input_sim)[0][1]
     
-    # Tentukan status dan warna
     if pred_sim == 1:
         status_text = "BERPOTENSI BANJIR"
-        status_color = "red"
+        status_color = "#ff4b4b" # Merah Streamlit
+        bg_color = "#ffebeb"
         icon = "⚠️"
     else:
         status_text = "AMAN / TIDAK BANJIR"
-        status_color = "green"
-        icon = ""
+        status_color = "#09ab3b" # Hijau Streamlit
+        bg_color = "#e8fdf0"
+        icon = "✅"
     
-    # Tampilkan Hasil dengan Format yang diminta
     st.markdown(f"""
-    <div style="padding: 15px; border-radius: 10px; background-color: #f0f2f6; border-left: 5px solid {status_color};">
+    <div style="padding: 15px; border-radius: 10px; background-color: {bg_color}; border: 1px solid {status_color};">
         <h3 style="color: {status_color}; margin:0;">{icon} Status: {status_text}</h3>
-        <p style="font-size: 16px; margin-top: 10px;">
+        <p style="font-size: 16px; margin-top: 10px; color: #333;">
             <b>Kondisi Kecamatan {nama_kec} saat ini {status_text.lower()}.</b><br>
-             Tanggal: {tgl_str} <br>
-             Jam: {jam_str}
+            Tanggal: <b>{tgl_str}</b> <br>
+            Jam: <b>{jam_str}</b>
         </p>
     </div>
     """, unsafe_allow_html=True)
     
-    # Tampilkan Detail Parameter dalam kolom
     k1, k2, k3, k4 = st.columns(4)
     k1.metric("Curah Hujan", f"{sim_hujan:.1f} mm")
     k2.metric("Debit Air", f"{sim_debit:.1f} m³/s")
     k3.metric("Muka Air", f"{sim_muka:.2f} m")
-    k4.metric("Tinggi Air", f"{sim_tinggi:.2f} m")
+    k4.metric("Tinggi Genangan", f"{sim_tinggi:.2f} m")
 
 st.divider()
 
+# ==============================
+# 6. UI: INPUT MANUAL
+# ==============================
 st.subheader("Prediksi Manual")
 st.write("Masukkan parameter di bawah ini untuk melakukan prediksi manual.")
 
-# Statistik Model
 with st.expander("Lihat Statistik Model"):
     col1, col2 = st.columns(2)
     col1.metric("Akurasi Model", f"{akurasi:.2%}")
     col2.write("Confusion Matrix:")
     col2.write(cm)
 
-# Form Input
 kecamatan_select = st.selectbox("Pilih Kecamatan", options=list(kecamatan_mapping.keys()))
 
 c1, c2 = st.columns(2)
@@ -170,7 +183,6 @@ with c1:
     debit_air = st.number_input("Debit Air (m³/s)", min_value=0.0, step=0.1)
 with c2:
     muka_air = st.number_input("Tinggi Muka Air (m)", min_value=0.0, step=0.1)
-    # Ubah label ke Meter agar sesuai data training (0 - 1.1 m)
     tinggi_banjir = st.number_input("Tinggi Genangan Air (m)", min_value=0.0, max_value=5.0, step=0.01)
 
 if st.button("🔍 Jalankan Prediksi Manual", use_container_width=True):
@@ -188,7 +200,5 @@ if st.button("🔍 Jalankan Prediksi Manual", use_container_width=True):
     st.subheader("Hasil Analisis:")
     if prediction == 1:
         st.error(f"⚠️ **POTENSI BANJIR TINGGI** (Probabilitas: {probability:.2%})")
-        st.warning("Mohon waspada dan pantau informasi dari pihak terkait.")
     else:
         st.success(f" **TIDAK ADA POTENSI BANJIR** (Probabilitas: {probability:.2%})")
-        st.info("Kondisi saat ini diprediksi aman.")
