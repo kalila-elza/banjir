@@ -15,6 +15,13 @@ st.set_page_config(
 
 @st.cache_data
 def load_data():
+    # Daftar kecamatan tambahan sesuai permintaan user
+    kecamatan_baru = [
+        "Mangalayang", "Jatiroke", "Arjasari", "Rancaupas", "Cileunca", 
+        "Kertamanah", "Cisanti", "Kertasari", "Ciluluk", "Cipanas", 
+        "Cisondari", "Hantap", "Cipaku Paseh"
+    ]
+    
     try:
         df = pd.read_csv("Data Banjir Daleuhlkolot - Sheet1.csv")
     except FileNotFoundError:
@@ -37,9 +44,12 @@ def load_data():
             df[col] = df[col].astype(str).str.replace("-", "0").str.strip()
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
-    # Encoding Kecamatan
+    # Encoding Kecamatan (Menggabungkan data CSV + daftar baru)
     df["Kecamatan"] = df["Kecamatan"].astype(str).str.strip()
-    kecamatan_list = df["Kecamatan"].unique().tolist()
+    
+    # Ambil kecamatan unik dari CSV dan gabungkan dengan daftar baru, lalu buang duplikat
+    kecamatan_list = sorted(list(set(df["Kecamatan"].unique().tolist() + kecamatan_baru)))
+    
     kec_mapping = {k: i for i, k in enumerate(kecamatan_list)}
     df["Kecamatan_Enc"] = df["Kecamatan"].map(kec_mapping)
 
@@ -50,6 +60,7 @@ df, kecamatan_mapping = load_data()
 if df.empty:
     st.stop()
 
+# --- BAGIAN MODEL ---
 features = ["Kecamatan_Enc", "Curah Hujan", "Debit Air", "Muka Air", "Tinggi Banjir"]
 X = df[features]
 y = df["Banjir Ya/Tidak"].astype(int)
@@ -66,6 +77,7 @@ y_pred = model.predict(X_test)
 akurasi = accuracy_score(y_test, y_pred)
 cm = confusion_matrix(y_test, y_pred)
 
+# --- TAMPILAN UI ---
 try:
     st.image("Dayeuhkolot.jpg", use_container_width=True)
 except:
@@ -74,6 +86,7 @@ except:
 st.title("Sistem Peringatan Dini Banjir")
 st.markdown("---")
 
+# FITUR 1: Kondisi Real-time (Simulasi)
 st.subheader("Kondisi Real-time (Simulasi)")
 
 if st.button("Cek Kondisi Terkini dari BMKG (Simulasi)"):
@@ -98,7 +111,6 @@ if st.button("Cek Kondisi Terkini dari BMKG (Simulasi)"):
 
     wib_now = datetime.utcnow() + timedelta(hours=7)
     
-
     bulan_indo = {
         1: 'Januari', 2: 'Februari', 3: 'Maret', 4: 'April', 5: 'Mei', 6: 'Juni',
         7: 'Juli', 8: 'Agustus', 9: 'September', 10: 'Oktober', 11: 'November', 12: 'Desember'
@@ -107,7 +119,8 @@ if st.button("Cek Kondisi Terkini dari BMKG (Simulasi)"):
     tgl_str = f"{wib_now.day} {bulan_indo[wib_now.month]} {wib_now.year}"
     jam_str = wib_now.strftime("%H:%M WIB")
     
-    nama_kec = list(kecamatan_mapping.keys())[0]
+    # Ambil kecamatan secara acak untuk simulasi
+    nama_kec = random.choice(list(kecamatan_mapping.keys()))
     kode_kec = kecamatan_mapping[nama_kec]
     
     input_sim = pd.DataFrame([[
@@ -118,12 +131,12 @@ if st.button("Cek Kondisi Terkini dari BMKG (Simulasi)"):
     
     if pred_sim == 1:
         status_text = "BERPOTENSI BANJIR"
-        status_color = "#ff4b4b" # Merah Streamlit
+        status_color = "#ff4b4b" 
         bg_color = "#ffebeb"
         icon = "⚠️"
     else:
         status_text = "AMAN / TIDAK BANJIR"
-        status_color = "#09ab3b" # Hijau Streamlit
+        status_color = "#09ab3b" 
         bg_color = "#e8fdf0"
         icon = "✅"
     
@@ -145,15 +158,19 @@ if st.button("Cek Kondisi Terkini dari BMKG (Simulasi)"):
     k4.metric("Tinggi Genangan", f"{sim_tinggi:.2f} m")
 
 st.divider()
+
+# FITUR 2: Prediksi Manual
 st.subheader("Prediksi Manual")
 st.write("Masukkan parameter di bawah ini untuk melakukan prediksi manual.")
 
+# FITUR 3: Statistik Model (Expander)
 with st.expander("Lihat Statistik Model"):
     col1, col2 = st.columns(2)
     col1.metric("Akurasi Model", f"{akurasi:.2%}")
     col2.write("Confusion Matrix:")
     col2.write(cm)
 
+# Dropdown yang sudah ditambahkan kecamatan lainnya
 kecamatan_select = st.selectbox("Pilih Kecamatan", options=list(kecamatan_mapping.keys()))
 
 c1, c2 = st.columns(2)
@@ -180,4 +197,4 @@ if st.button("🔍 Jalankan Prediksi Manual", use_container_width=True):
     if prediction == 1:
         st.error(f"⚠️ **POTENSI BANJIR TINGGI** (Probabilitas: {probability:.2%})")
     else:
-        st.success(f" **TIDAK ADA POTENSI BANJIR** (Probabilitas: {probability:.2%})")
+        st.success(f"✅ **TIDAK ADA POTENSI BANJIR** (Probabilitas: {1-probability:.2%})")
