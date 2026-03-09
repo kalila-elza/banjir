@@ -64,8 +64,11 @@ X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42, stratify=y
 )
 
-# AUGMENTASI DATA DENGAN SMOTE (Hanya pada data latih)
-smote = SMOTE(random_state=42)
+# AUGMENTASI DATA DENGAN SMOTE (Rasio diturunkan)
+# sampling_strategy=0.3 artinya kelas minoritas (Banjir) akan ditambah 
+# sampai jumlahnya 30% dari kelas mayoritas (Aman)
+smote = SMOTE(sampling_strategy=0.3, random_state=42)
+
 try:
     X_train_balanced, y_train_balanced = smote.fit_resample(X_train, y_train)
 except ValueError:
@@ -73,8 +76,10 @@ except ValueError:
     X_train_balanced, y_train_balanced = X_train, y_train
     st.warning("Data latih terlalu sedikit untuk augmentasi SMOTE. Menggunakan data asli.")
 
-# Membangun model dengan class_weight='balanced' untuk penanganan ekstra
-model = RandomForestClassifier(n_estimators=100, random_state=42, class_weight='balanced')
+# Membangun model
+# Note: Saya menghilangkan class_weight='balanced' agar model tidak 
+# memberikan penalti berlebihan yang memicu alarm palsu
+model = RandomForestClassifier(n_estimators=100, random_state=42)
 model.fit(X_train_balanced, y_train_balanced)
 
 # Evaluasi
