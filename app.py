@@ -16,46 +16,57 @@ st.set_page_config(
 # --- PEMETAAN ALIRAN SUNGAI ---
 # Dictionary untuk memetakan lokasi pencarian ke data utama
 pemetaan_aliran = {
-    # 1. Aliran Sungai Citarum (Utama) -> Dayeuhkolot
+    # 1. Aliran Sungai Citarum (Utama) -> Data Acuan: Dayeuhkolot
     "Dayeuhkolot": "Dayeuhkolot",
-    "Situ Cisanti (Kertasari)": "Dayeuhkolot",
+    "Situ Cisanti (Hulu Citarum, Kertasari)": "Dayeuhkolot",
+    "Cisanti": "Dayeuhkolot", 
     "Kertasari": "Dayeuhkolot",
     "Wangisagara (Majalaya)": "Dayeuhkolot",
     "Majalaya": "Dayeuhkolot",
-    "Sapan": "Dayeuhkolot",
+    "Sapan (Titik temu beberapa anak sungai)": "Dayeuhkolot",
     "Rancamanyar (Baleendah)": "Dayeuhkolot",
     "Nanjung (Margaasih)": "Dayeuhkolot",
-    "Cabangbungin": "Dayeuhkolot",
+    "Cabangbungin (Hilir Citarum)": "Dayeuhkolot",
+    "Hantap": "Dayeuhkolot",
 
-    # 2. Aliran Sungai Cisangkuy -> Cipanas - Margamukti
-    "Cipanas - Margamukti": "Cipanas - Margamukti",
-    "Cileunca - Wanasari": "Cipanas - Margamukti",
-    "Kertamanah - Margamukti": "Cipanas - Margamukti",
+    # 2. Aliran Sungai Cisangkuy -> Data Acuan: Cipanas - Margamukti
+    "Cipanas - Margamukti (Pangalengan)": "Cipanas - Margamukti",
+    "Cipanas": "Cipanas - Margamukti",
+    "Cileunca - Wanasari (Pangalengan)": "Cipanas - Margamukti",
+    "Cileunca": "Cipanas - Margamukti",
+    "Kertamanah - Margamukti (Pangalengan)": "Cipanas - Margamukti",
+    "Kertamanah": "Cipanas - Margamukti",
     "Kamasan (Banjaran)": "Cipanas - Margamukti",
     "Pataruman (Baleendah)": "Cipanas - Margamukti",
+    "Arjasari": "Cipanas - Margamukti",
 
-    # 3. Aliran Sungai Citarik & Cikeruh -> Cikeruh - Jatiroke
+    # 3. Aliran Sungai Citarik & Cikeruh -> Data Acuan: Cikeruh - Jatiroke
     "Cikeruh - Jatiroke": "Cikeruh - Jatiroke",
-    "Cicalengka": "Cikeruh - Jatiroke",
+    "Jatiroke": "Cikeruh - Jatiroke",
+    "Cicalengka (Termasuk titik Dampit)": "Cikeruh - Jatiroke",
     "Ciluluk - Cikancung": "Cikeruh - Jatiroke",
+    "Ciluluk": "Cikeruh - Jatiroke",
     "Rancaekek": "Cikeruh - Jatiroke",
-    "Solokan Jeruk": "Cikeruh - Jatiroke",
+    "Solokan Jeruk (Titik Citarik)": "Cikeruh - Jatiroke",
+    "Mangalayang": "Cikeruh - Jatiroke",
 
-    # 4. Aliran Sungai Ciwidey & Cisondari -> Cisondari - Pasirjambu
+    # 4. Aliran Sungai Ciwidey & Cisondari -> Data Acuan: Cisondari - Pasirjambu
     "Cisondari - Pasirjambu": "Cisondari - Pasirjambu",
+    "Cisondari": "Cisondari - Pasirjambu",
     "Ciwidey": "Cisondari - Pasirjambu",
     "Cibeureum Sadu (Soreang)": "Cisondari - Pasirjambu",
+    "Rancaupas": "Cisondari - Pasirjambu",
 
-    # 5. Aliran Sungai Lainnya / Lokal -> Bojongsoang
+    # 5. Aliran Sungai Lainnya / Lokal -> Data Acuan: Bojongsoang
     "Bojongsoang": "Bojongsoang",
-    "Cigede - Komplek Radio": "Bojongsoang",
+    "Cigede - Komplek Radio (Bojongsoang)": "Bojongsoang",
     "Cijalupang - Peundeuy": "Bojongsoang",
-    "Cipaku - Paseh": "Bojongsoang"
+    "Cipaku - Paseh": "Bojongsoang",
+    "Cipaku Paseh": "Bojongsoang" 
 }
 
 @st.cache_data
 def load_data():
-    # Mengambil daftar lokasi utama dari mapping aliran untuk dipastikan masuk ke encoder
     kecamatan_baru = list(set(pemetaan_aliran.values()))
     
     try:
@@ -96,7 +107,6 @@ df, kecamatan_mapping = load_data()
 if df.empty:
     st.stop()
 
-# --- BAGIAN MODEL ---
 features = ["Kecamatan_Enc", "Curah Hujan", "Debit Air", "Muka Air", "Tinggi Banjir"]
 X = df[features]
 y = df["Banjir Ya/Tidak"].astype(int)
@@ -141,7 +151,6 @@ except:
 st.title("Sistem Peringatan Dini Banjir Berbasis Aliran Sungai")
 st.markdown("---")
 
-# FITUR 1: Kondisi Real-time (Simulasi)
 st.subheader("Kondisi Real-time (Simulasi)")
 
 if st.button("Cek Kondisi Terkini dari BMKG (Simulasi)"):
@@ -173,7 +182,6 @@ if st.button("Cek Kondisi Terkini dari BMKG (Simulasi)"):
     tgl_str = f"{wib_now.day} {bulan_indo[wib_now.month]} {wib_now.year}"
     jam_str = wib_now.strftime("%H:%M WIB")
     
-    # Pilih lokasi random dari seluruh lokasi yang ada di kamus
     nama_lokasi = random.choice(list(pemetaan_aliran.keys()))
     lokasi_utama = pemetaan_aliran[nama_lokasi]
     kode_kec = kecamatan_mapping[lokasi_utama]
