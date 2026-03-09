@@ -21,53 +21,43 @@ st.set_page_config(
 )
 
 pemetaan_aliran = {
-    # 1. Aliran Citarum (Utama)
+    # 1. Aliran Citarum (Utama) -> Data Acuan: Dayeuhkolot
     "Dayeuhkolot": "Dayeuhkolot",
-    "Situ Cisanti (Hulu Citarum, Kertasari)": "Dayeuhkolot",
-    "Cisanti": "Dayeuhkolot", 
-    "Kertasari": "Dayeuhkolot",
+    "Situ Cisanti (Kertasari)": "Dayeuhkolot",
     "Wangisagara (Majalaya)": "Dayeuhkolot",
-    "Majalaya": "Dayeuhkolot",
-    "Sapan (Titik temu beberapa anak sungai)": "Dayeuhkolot",
+    "Sapan (Titik Temu Anak Sungai)": "Dayeuhkolot",
     "Rancamanyar (Baleendah)": "Dayeuhkolot",
     "Nanjung (Margaasih)": "Dayeuhkolot",
     "Cabangbungin (Hilir Citarum)": "Dayeuhkolot",
     "Hantap": "Dayeuhkolot",
 
-    # 2. Aliran Cisangkuy
+    # 2. Aliran Cisangkuy -> Data Acuan: Cipanas - Margamukti
     "Cipanas - Margamukti (Pangalengan)": "Cipanas - Margamukti",
-    "Cipanas": "Cipanas - Margamukti",
     "Cileunca - Wanasari (Pangalengan)": "Cipanas - Margamukti",
-    "Cileunca": "Cipanas - Margamukti",
     "Kertamanah - Margamukti (Pangalengan)": "Cipanas - Margamukti",
-    "Kertamanah": "Cipanas - Margamukti",
     "Kamasan (Banjaran)": "Cipanas - Margamukti",
     "Pataruman (Baleendah)": "Cipanas - Margamukti",
     "Arjasari": "Cipanas - Margamukti",
 
-    # 3. Aliran Citarik & Cikeruh
+    # 3. Aliran Citarik & Cikeruh -> Data Acuan: Cikeruh - Jatiroke
     "Cikeruh - Jatiroke": "Cikeruh - Jatiroke",
-    "Jatiroke": "Cikeruh - Jatiroke",
-    "Cicalengka (Termasuk titik Dampit)": "Cikeruh - Jatiroke",
+    "Cicalengka (Termasuk Dampit)": "Cikeruh - Jatiroke",
     "Ciluluk - Cikancung": "Cikeruh - Jatiroke",
-    "Ciluluk": "Cikeruh - Jatiroke",
     "Rancaekek": "Cikeruh - Jatiroke",
     "Solokan Jeruk (Titik Citarik)": "Cikeruh - Jatiroke",
     "Mangalayang": "Cikeruh - Jatiroke",
 
-    # 4. Aliran Ciwidey & Cisondari
+    # 4. Aliran Ciwidey & Cisondari -> Data Acuan: Cisondari - Pasirjambu
     "Cisondari - Pasirjambu": "Cisondari - Pasirjambu",
-    "Cisondari": "Cisondari - Pasirjambu",
     "Ciwidey": "Cisondari - Pasirjambu",
     "Cibeureum Sadu (Soreang)": "Cisondari - Pasirjambu",
     "Rancaupas": "Cisondari - Pasirjambu",
 
-    # 5. Aliran Lainnya / Lokal
+    # 5. Aliran Lainnya / Lokal -> Data Acuan: Bojongsoang
     "Bojongsoang": "Bojongsoang",
-    "Cigede - Komplek Radio (Bojongsoang)": "Bojongsoang",
+    "Cigede - Komplek Radio": "Bojongsoang",
     "Cijalupang - Peundeuy": "Bojongsoang",
-    "Cipaku - Paseh": "Bojongsoang",
-    "Cipaku Paseh": "Bojongsoang" 
+    "Cipaku - Paseh": "Bojongsoang"
 }
 
 koordinat_stasiun = {
