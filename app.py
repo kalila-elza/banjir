@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report, precision_score, recall_score, f1_score
+# Tambahan import untuk augmentasi data
+from imblearn.over_sampling import SMOTE
 
 st.set_page_config(
     page_title="Prediksi Banjir Dayeuhkolot",
@@ -15,7 +17,6 @@ st.set_page_config(
 
 @st.cache_data
 def load_data():
-    # Daftar kecamatan tambahan sesuai permintaan user
     kecamatan_baru = [
         "Mangalayang", "Jatiroke", "Arjasari", "Rancaupas", "Cileunca", 
         "Kertamanah", "Cisanti", "Kertasari", "Ciluluk", "Cipanas", 
@@ -28,28 +29,22 @@ def load_data():
         st.error("File CSV tidak ditemukan! Pastikan file berada di folder yang sama.")
         return pd.DataFrame(), {}
 
-    # Bersihkan nama kolom
     df.columns = df.columns.str.strip()
 
-    # Bersihkan Target
     df["Banjir Ya/Tidak"] = df["Banjir Ya/Tidak"].astype(str).str.strip().str.lower()
     mapping_target = {"ya": 1, "1": 1, "0": 0, "tidak": 0}
     df["Banjir Ya/Tidak"] = df["Banjir Ya/Tidak"].map(mapping_target)
     df = df.dropna(subset=["Banjir Ya/Tidak"])
 
-    # Bersihkan Fitur Numerik
     cols_numerik = ["Curah Hujan", "Debit Air", "Muka Air", "Tinggi Banjir"]
     for col in cols_numerik:
         if col in df.columns:
             df[col] = df[col].astype(str).str.replace("-", "0").str.strip()
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
-    # Encoding Kecamatan (Menggabungkan data CSV + daftar baru)
     df["Kecamatan"] = df["Kecamatan"].astype(str).str.strip()
     
-    # Ambil kecamatan unik dari CSV dan gabungkan dengan daftar baru, lalu buang duplikat
     kecamatan_list = sorted(list(set(df["Kecamatan"].unique().tolist() + kecamatan_baru)))
-    
     kec_mapping = {k: i for i, k in enumerate(kecamatan_list)}
     df["Kecamatan_Enc"] = df["Kecamatan"].map(kec_mapping)
 
@@ -69,19 +64,34 @@ X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42, stratify=y
 )
 
-model = RandomForestClassifier(n_estimators=100, random_state=42)
-model.fit(X_train, y_train)
+# AUGMENTASI DATA DENGAN SMOTE (Hanya pada data latih)
+smote = SMOTE(random_state=42)
+try:
+    X_train_balanced, y_train_balanced = smote.fit_resample(X_train, y_train)
+except ValueError:
+    # Fallback jika data terlalu sedikit untuk di-SMOTE
+    X_train_balanced, y_train_balanced = X_train, y_train
+    st.warning("Data latih terlalu sedikit untuk augmentasi SMOTE. Menggunakan data asli.")
 
-# Evaluasi Lengkap
+# Membangun model dengan class_weight='balanced' untuk penanganan ekstra
+model = RandomForestClassifier(n_estimators=100, random_state=42, class_weight='balanced')
+model.fit(X_train_balanced, y_train_balanced)
+
+# Evaluasi
 y_pred = model.predict(X_test)
 akurasi = accuracy_score(y_test, y_pred)
-
-# Karena ini klasifikasi biner, kita set zero_division=0 untuk menghindari warning jika ada kelas yang tidak terprediksi
 presisi = precision_score(y_test, y_pred, zero_division=0)
-recall = recall_score(y_test, y_pred, zero_division=0)
+recall_macro = recall_score(y_test, y_pred, zero_division=0) # Rata-rata keseluruhan
 f1 = f1_score(y_test, y_pred, zero_division=0)
 cm = confusion_matrix(y_test, y_pred)
 report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
+
+# Ambil nilai Recall khusus untuk Kelas 1 (Banjir)
+# Ini adalah metrik terpenting sesuai permintaanmu (>50%)
+try:
+    recall_banjir = report['1']['recall']
+except KeyError:
+    recall_banjir = 0.0
 
 # --- TAMPILAN UI ---
 try:
@@ -96,7 +106,6 @@ st.markdown("---")
 st.subheader("Kondisi Real-time (Simulasi)")
 
 if st.button("Cek Kondisi Terkini dari BMKG (Simulasi)"):
-    # 1. Generate Data Random
     skenario = np.random.choice(['Aman', 'Waspada', 'Bahaya'], p=[0.7, 0.2, 0.1])
     
     if skenario == 'Aman':
@@ -125,7 +134,6 @@ if st.button("Cek Kondisi Terkini dari BMKG (Simulasi)"):
     tgl_str = f"{wib_now.day} {bulan_indo[wib_now.month]} {wib_now.year}"
     jam_str = wib_now.strftime("%H:%M WIB")
     
-    # Ambil kecamatan secara acak untuk simulasi
     nama_kec = random.choice(list(kecamatan_mapping.keys()))
     kode_kec = kecamatan_mapping[nama_kec]
     
@@ -170,12 +178,21 @@ st.subheader("Prediksi Manual")
 st.write("Masukkan parameter di bawah ini untuk melakukan prediksi manual.")
 
 # FITUR 3: Statistik Model (Expander)
-with st.expander("📊 Lihat Detail Performa Model (Klasifikasi)"):
+with st.expander("📊 Lihat Detail Performa Model (Setelah Data Diseimbangkan)"):
+    
+    # Highlight Target Pengguna: Recall Banjir
+    target_color = "normal" if recall_banjir > 0.50 else "off"
+    st.metric(label="🎯 Kemampuan Mendeteksi Banjir (Recall Kelas 1 - Target > 50%)", 
+              value=f"{recall_banjir:.2%}", 
+              delta="Target Tercapai!" if recall_banjir > 0.50 else "Masih di Bawah Target", 
+              delta_color=target_color)
+    st.markdown("---")
+    
     # Baris Pertama: Metric Utama
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Akurasi", f"{akurasi:.2%}")
+    m1.metric("Akurasi Keseluruhan", f"{akurasi:.2%}")
     m2.metric("Precision", f"{presisi:.2%}")
-    m3.metric("Recall", f"{recall:.2%}")
+    m3.metric("Recall (Rata-rata)", f"{recall_macro:.2%}")
     m4.metric("F1-Score", f"{f1:.2%}")
     
     st.divider()
@@ -185,7 +202,6 @@ with st.expander("📊 Lihat Detail Performa Model (Klasifikasi)"):
     
     with col_cm:
         st.write("**Confusion Matrix:**")
-        # Menambahkan pengecekan bentuk matrix untuk menghindari error jika data test hanya 1 kelas
         if cm.shape == (2, 2):
             cm_df = pd.DataFrame(cm, 
                                  index=['Aktual Tidak', 'Aktual Banjir'], 
@@ -200,13 +216,11 @@ with st.expander("📊 Lihat Detail Performa Model (Klasifikasi)"):
         st.dataframe(report_df.style.format(precision=2))
 
     st.info("""
-    **Keterangan Singkat:**
-    * **Precision**: Seberapa akurat model saat menebak 'Banjir' (menghindari alarm palsu).
-    * **Recall**: Seberapa banyak kejadian 'Banjir' yang berhasil ditangkap model (sangat penting untuk peringatan dini).
-    * **F1-Score**: Rata-rata harmonis antara Precision dan Recall.
+    **Catatan Augmentasi Data:**
+    Model ini telah dilatih menggunakan metode **SMOTE** untuk membuat data sintetis pada kelas 'Banjir', sehingga dataset seimbang saat pelatihan. Ini membantu meningkatkan *Recall* pada kelas 'Banjir'.
     """)
 
-# Dropdown yang sudah ditambahkan kecamatan lainnya
+# Dropdown kecamatan
 kecamatan_select = st.selectbox("Pilih Kecamatan", options=list(kecamatan_mapping.keys()))
 
 c1, c2 = st.columns(2)
