@@ -16,7 +16,7 @@ except ImportError:
 
 st.set_page_config(
     page_title="Prediksi Banjir Dayeuhkolot",
-    layout="wide", 
+    layout="wide",
     initial_sidebar_state="expanded"
 )
 
@@ -112,35 +112,48 @@ if df.empty:
     st.error("File CSV tidak ditemukan! Pastikan 'Data Banjir Daleuhlkolot - Sheet1.csv' berada di folder yang sama.")
     st.stop()
 
-# --- MODEL TRAINING ---
-features = ["Kecamatan_Enc", "Curah Hujan", "Debit Air", "Muka Air", "Tinggi Banjir"]
-X = df[features]
-y = df["Banjir Ya/Tidak"].astype(int)
+# --- FUNGSI TRAINING MODEL (DI-CACHE RESOURCE AGAR TIDAK LEMOT) ---
+@st.cache_resource
+def train_model(dataframe):
+    features = ["Kecamatan_Enc", "Curah Hujan", "Debit Air", "Muka Air", "Tinggi Banjir"]
+    X = dataframe[features]
+    y = dataframe["Banjir Ya/Tidak"].astype(int)
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
-rasio_imbalance = (y_train == 0).sum() / (y_train == 1).sum() if (y_train == 1).sum() > 0 else 1
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+    
+    jumlah_aman = (y_train == 0).sum()
+    jumlah_banjir = (y_train == 1).sum()
+    rasio_imbalance = jumlah_aman / jumlah_banjir if jumlah_banjir > 0 else 1
 
-model = XGBClassifier(
-    n_estimators=100, scale_pos_weight=rasio_imbalance,
-    random_state=42, learning_rate=0.1, max_depth=4, eval_metric='logloss'
-)
-model.fit(X_train, y_train)
+    model = XGBClassifier(
+        n_estimators=100, 
+        scale_pos_weight=rasio_imbalance,
+        random_state=42, 
+        learning_rate=0.1, 
+        max_depth=4, 
+        eval_metric='logloss'
+    )
+    model.fit(X_train, y_train)
 
-y_pred = model.predict(X_test)
-akurasi = accuracy_score(y_test, y_pred)
-presisi = precision_score(y_test, y_pred, zero_division=0)
-recall_macro = recall_score(y_test, y_pred, zero_division=0)
-f1 = f1_score(y_test, y_pred, zero_division=0)
-cm = confusion_matrix(y_test, y_pred)
-report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
-recall_banjir = report['1']['recall'] if '1' in report else 0.0
+    y_pred = model.predict(X_test)
+    akurasi = accuracy_score(y_test, y_pred)
+    presisi = precision_score(y_test, y_pred, zero_division=0)
+    recall_macro = recall_score(y_test, y_pred, zero_division=0)
+    f1 = f1_score(y_test, y_pred, zero_division=0)
+    cm = confusion_matrix(y_test, y_pred)
+    report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
+    recall_banjir = report['1']['recall'] if '1' in report else 0.0
+    
+    return model, features, akurasi, presisi, recall_macro, f1, cm, report, recall_banjir
 
-st.title(" Sistem Peringatan Dini Banjir Berbasis Aliran Sungai")
+# Memanggil fungsi training (saat pertama kali load)
+model, features, akurasi, presisi, recall_macro, f1, cm, report, recall_banjir = train_model(df)
+
+st.title("Sistem Peringatan Dini Banjir Berbasis Aliran Sungai")
 st.markdown("Pantau dan prediksi potensi banjir di wilayah Kabupaten Bandung berdasarkan data hidrologis dan spasial.")
 st.markdown("---")
 
-
-tab1, tab2, tab3 = st.tabs(["Prediksi Manual & Peta GIS", " Simulasi Real-time", "Performa Model AI"])
+tab1, tab2, tab3 = st.tabs(["Prediksi Manual & Peta GIS", "Simulasi Real-time", "Performa Model AI"])
 
 with st.sidebar:
     try:
@@ -194,12 +207,10 @@ with tab1:
         lokasi_utama_peta = pemetaan_aliran[lokasi_select]
         
         if HAS_FOLIUM:
-            koor = koordinat_stasiun.get(lokasi_utama_peta, [-6.9881, 107.6281]) # Default ke Dayeuhkolot jika tidak ada
+            koor = koordinat_stasiun.get(lokasi_utama_peta, [-6.9881, 107.6281]) 
             
-            # Membuat Peta
             m = folium.Map(location=koor, zoom_start=13, tiles="CartoDB positron")
             
-            # Menambahkan Marker lokasi sungai
             folium.Marker(
                 koor, 
                 popup=f"Stasiun Acuan: {lokasi_utama_peta}", 
@@ -207,16 +218,14 @@ with tab1:
                 icon=folium.Icon(color="red", icon="info-sign")
             ).add_to(m)
             
-            # Menambahkan radius bahaya merah
             folium.Circle(
                 location=koor,
-                radius=1500, # Radius 1.5 KM
+                radius=1500, 
                 color='crimson',
                 fill=True,
                 fill_color='crimson'
             ).add_to(m)
 
-            # Menampilkan di Streamlit
             st_folium(m, width=500, height=350, returned_objects=[])
         else:
             st.warning("Library 'folium' dan 'streamlit-folium' belum terinstal. Buka terminal dan jalankan `pip install folium streamlit-folium` untuk melihat peta.")
@@ -264,7 +273,6 @@ with tab2:
 
 with tab3:
     st.subheader("Detail Evaluasi Algoritma XGBoost")
-    
     target_color = "normal" if recall_banjir > 0.50 else "off"
     st.metric(label="🎯 Kemampuan Mendeteksi Banjir (Recall Kelas 1 - Target > 50%)", 
               value=f"{recall_banjir:.2%}", 
