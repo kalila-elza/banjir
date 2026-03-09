@@ -7,7 +7,6 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report, precision_score, recall_score, f1_score
 from xgboost import XGBClassifier
 
-# Import Library untuk Peta (GIS)
 try:
     import folium
     from streamlit_folium import st_folium
@@ -17,11 +16,10 @@ except ImportError:
 
 st.set_page_config(
     page_title="Prediksi Banjir Dayeuhkolot",
-    layout="wide", # Menggunakan layout wide agar peta dan visual lebih leluasa
+    layout="wide", 
     initial_sidebar_state="expanded"
 )
 
-# --- PEMETAAN ALIRAN SUNGAI & KOORDINAT GIS ---
 pemetaan_aliran = {
     # 1. Aliran Citarum (Utama)
     "Dayeuhkolot": "Dayeuhkolot",
@@ -72,7 +70,6 @@ pemetaan_aliran = {
     "Cipaku Paseh": "Bojongsoang" 
 }
 
-# Titik Koordinat GPS [Latitude, Longitude] untuk Peta Interaktif
 koordinat_stasiun = {
     "Dayeuhkolot": [-6.9881, 107.6281],
     "Cipanas - Margamukti": [-7.2185, 107.5565],
@@ -138,17 +135,13 @@ cm = confusion_matrix(y_test, y_pred)
 report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
 recall_banjir = report['1']['recall'] if '1' in report else 0.0
 
-# --- TAMPILAN UI UTAMA ---
-st.title("🌊 Sistem Peringatan Dini Banjir Berbasis Aliran Sungai")
+st.title(" Sistem Peringatan Dini Banjir Berbasis Aliran Sungai")
 st.markdown("Pantau dan prediksi potensi banjir di wilayah Kabupaten Bandung berdasarkan data hidrologis dan spasial.")
 st.markdown("---")
 
-# Menggunakan TABS untuk merapikan UI
-tab1, tab2, tab3 = st.tabs(["🎛️ Prediksi Manual & Peta GIS", "📡 Simulasi Real-time", "📊 Performa Model AI"])
 
-# ==========================================
-# SIDEBAR UNTUK INPUT MANUAL
-# ==========================================
+tab1, tab2, tab3 = st.tabs(["Prediksi Manual & Peta GIS", " Simulasi Real-time", "Performa Model AI"])
+
 with st.sidebar:
     try:
         st.image("Dayeuhkolot.jpg", use_container_width=True)
@@ -166,11 +159,8 @@ with st.sidebar:
     
     tombol_prediksi = st.button("🔍 Jalankan Prediksi", use_container_width=True, type="primary")
 
-# ==========================================
-# TAB 1: PREDIKSI MANUAL & PETA GIS
-# ==========================================
 with tab1:
-    col_hasil, col_peta = st.columns([1, 1.2]) # Membagi layar jadi 2 kolom
+    col_hasil, col_peta = st.columns([1, 1.2]) 
     
     with col_hasil:
         st.subheader("Hasil Analisis")
@@ -200,7 +190,7 @@ with tab1:
             st.info("👈 Silakan atur parameter di panel samping (Sidebar) dan tekan tombol 'Jalankan Prediksi'.")
 
     with col_peta:
-        st.subheader("🗺️ Peta Pantauan Sungai (GIS)")
+        st.subheader("Peta Pantauan Sungai (GIS)")
         lokasi_utama_peta = pemetaan_aliran[lokasi_select]
         
         if HAS_FOLIUM:
@@ -231,13 +221,10 @@ with tab1:
         else:
             st.warning("Library 'folium' dan 'streamlit-folium' belum terinstal. Buka terminal dan jalankan `pip install folium streamlit-folium` untuk melihat peta.")
 
-# ==========================================
-# TAB 2: KONDISI REAL-TIME
-# ==========================================
 with tab2:
     st.subheader("Pantauan Sensor Virtual (Simulasi Real-time)")
     
-    if st.button("🔄 Cek Kondisi Terkini dari BMKG (Simulasi)"):
+    if st.button("Cek Kondisi Terkini dari BMKG (Simulasi)"):
         skenario = np.random.choice(['Aman', 'Waspada', 'Bahaya'], p=[0.7, 0.2, 0.1])
         if skenario == 'Aman':
             sim_hujan, sim_debit, sim_muka, sim_tinggi = random.uniform(0, 10), random.uniform(20, 60), random.uniform(2.0, 4.5), 0.0
@@ -275,9 +262,6 @@ with tab2:
         k3.metric("Muka Air", f"{sim_muka:.2f} m")
         k4.metric("Tinggi Genangan", f"{sim_tinggi:.2f} m")
 
-# ==========================================
-# TAB 3: PERFORMA MODEL
-# ==========================================
 with tab3:
     st.subheader("Detail Evaluasi Algoritma XGBoost")
     
