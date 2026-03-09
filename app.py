@@ -112,7 +112,6 @@ if df.empty:
     st.error("File CSV tidak ditemukan! Pastikan 'Data Banjir Daleuhlkolot - Sheet1.csv' berada di folder yang sama.")
     st.stop()
 
-# --- FUNGSI TRAINING MODEL (DI-CACHE RESOURCE AGAR TIDAK LEMOT) ---
 @st.cache_resource
 def train_model(dataframe):
     features = ["Kecamatan_Enc", "Curah Hujan", "Debit Air", "Muka Air", "Tinggi Banjir"]
@@ -232,6 +231,7 @@ with tab1:
 
 with tab2:
     st.subheader("Pantauan Sensor Virtual (Simulasi Real-time)")
+    st.info(f"**Lokasi Pantauan Saat Ini:** {lokasi_select} \n\n*(Anda dapat mengubah lokasi pantauan melalui panel di sebelah kiri)*")
     
     if st.button("Cek Kondisi Terkini dari BMKG (Simulasi)"):
         skenario = np.random.choice(['Aman', 'Waspada', 'Bahaya'], p=[0.7, 0.2, 0.1])
@@ -244,8 +244,7 @@ with tab2:
 
         wib_now = datetime.utcnow() + timedelta(hours=7)
         jam_str = wib_now.strftime("%H:%M WIB")
-        
-        nama_lokasi = random.choice(list(pemetaan_aliran.keys()))
+        nama_lokasi = lokasi_select 
         lokasi_utama = pemetaan_aliran[nama_lokasi]
         kode_kec = kecamatan_mapping[lokasi_utama]
         
