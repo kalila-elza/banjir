@@ -5,7 +5,7 @@ import random
 from datetime import datetime, timedelta
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, confusion_matrix
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report, precision_score, recall_score, f1_score
 
 st.set_page_config(
     page_title="Prediksi Banjir Dayeuhkolot",
@@ -72,10 +72,16 @@ X_train, X_test, y_train, y_test = train_test_split(
 model = RandomForestClassifier(n_estimators=100, random_state=42)
 model.fit(X_train, y_train)
 
-# Evaluasi Singkat
+# Evaluasi Lengkap
 y_pred = model.predict(X_test)
 akurasi = accuracy_score(y_test, y_pred)
+
+# Karena ini klasifikasi biner, kita set zero_division=0 untuk menghindari warning jika ada kelas yang tidak terprediksi
+presisi = precision_score(y_test, y_pred, zero_division=0)
+recall = recall_score(y_test, y_pred, zero_division=0)
+f1 = f1_score(y_test, y_pred, zero_division=0)
 cm = confusion_matrix(y_test, y_pred)
+report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
 
 # --- TAMPILAN UI ---
 try:
@@ -164,11 +170,41 @@ st.subheader("Prediksi Manual")
 st.write("Masukkan parameter di bawah ini untuk melakukan prediksi manual.")
 
 # FITUR 3: Statistik Model (Expander)
-with st.expander("Lihat Statistik Model"):
-    col1, col2 = st.columns(2)
-    col1.metric("Akurasi Model", f"{akurasi:.2%}")
-    col2.write("Confusion Matrix:")
-    col2.write(cm)
+with st.expander("📊 Lihat Detail Performa Model (Klasifikasi)"):
+    # Baris Pertama: Metric Utama
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Akurasi", f"{akurasi:.2%}")
+    m2.metric("Precision", f"{presisi:.2%}")
+    m3.metric("Recall", f"{recall:.2%}")
+    m4.metric("F1-Score", f"{f1:.2%}")
+    
+    st.divider()
+    
+    # Baris Kedua: Confusion Matrix & Detail Report
+    col_cm, col_rep = st.columns([1, 1.5])
+    
+    with col_cm:
+        st.write("**Confusion Matrix:**")
+        # Menambahkan pengecekan bentuk matrix untuk menghindari error jika data test hanya 1 kelas
+        if cm.shape == (2, 2):
+            cm_df = pd.DataFrame(cm, 
+                                 index=['Aktual Tidak', 'Aktual Banjir'], 
+                                 columns=['Prediksi Tidak', 'Prediksi Banjir'])
+        else:
+            cm_df = pd.DataFrame(cm)
+        st.table(cm_df)
+        
+    with col_rep:
+        st.write("**Detail Laporan Klasifikasi:**")
+        report_df = pd.DataFrame(report).transpose()
+        st.dataframe(report_df.style.format(precision=2))
+
+    st.info("""
+    **Keterangan Singkat:**
+    * **Precision**: Seberapa akurat model saat menebak 'Banjir' (menghindari alarm palsu).
+    * **Recall**: Seberapa banyak kejadian 'Banjir' yang berhasil ditangkap model (sangat penting untuk peringatan dini).
+    * **F1-Score**: Rata-rata harmonis antara Precision dan Recall.
+    """)
 
 # Dropdown yang sudah ditambahkan kecamatan lainnya
 kecamatan_select = st.selectbox("Pilih Kecamatan", options=list(kecamatan_mapping.keys()))
