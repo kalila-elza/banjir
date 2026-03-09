@@ -148,7 +148,7 @@ with st.sidebar:
     except:
         pass
         
-    st.header("🎛️ Parameter Input")
+    st.header("Parameter Input")
     st.write("Masukkan data untuk dianalisis:")
     
     lokasi_select = st.selectbox("Pilih Lokasi (Kecamatan/Daerah)", options=list(pemetaan_aliran.keys()))
