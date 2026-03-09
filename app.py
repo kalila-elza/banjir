@@ -5,7 +5,6 @@ import random
 from datetime import datetime, timedelta
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report, precision_score, recall_score, f1_score
-# Import algoritma XGBoost
 from xgboost import XGBClassifier
 
 st.set_page_config(
@@ -14,14 +13,50 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# --- PEMETAAN ALIRAN SUNGAI ---
+# Dictionary untuk memetakan lokasi pencarian ke data utama
+pemetaan_aliran = {
+    # 1. Aliran Sungai Citarum (Utama) -> Dayeuhkolot
+    "Dayeuhkolot": "Dayeuhkolot",
+    "Situ Cisanti (Kertasari)": "Dayeuhkolot",
+    "Kertasari": "Dayeuhkolot",
+    "Wangisagara (Majalaya)": "Dayeuhkolot",
+    "Majalaya": "Dayeuhkolot",
+    "Sapan": "Dayeuhkolot",
+    "Rancamanyar (Baleendah)": "Dayeuhkolot",
+    "Nanjung (Margaasih)": "Dayeuhkolot",
+    "Cabangbungin": "Dayeuhkolot",
+
+    # 2. Aliran Sungai Cisangkuy -> Cipanas - Margamukti
+    "Cipanas - Margamukti": "Cipanas - Margamukti",
+    "Cileunca - Wanasari": "Cipanas - Margamukti",
+    "Kertamanah - Margamukti": "Cipanas - Margamukti",
+    "Kamasan (Banjaran)": "Cipanas - Margamukti",
+    "Pataruman (Baleendah)": "Cipanas - Margamukti",
+
+    # 3. Aliran Sungai Citarik & Cikeruh -> Cikeruh - Jatiroke
+    "Cikeruh - Jatiroke": "Cikeruh - Jatiroke",
+    "Cicalengka": "Cikeruh - Jatiroke",
+    "Ciluluk - Cikancung": "Cikeruh - Jatiroke",
+    "Rancaekek": "Cikeruh - Jatiroke",
+    "Solokan Jeruk": "Cikeruh - Jatiroke",
+
+    # 4. Aliran Sungai Ciwidey & Cisondari -> Cisondari - Pasirjambu
+    "Cisondari - Pasirjambu": "Cisondari - Pasirjambu",
+    "Ciwidey": "Cisondari - Pasirjambu",
+    "Cibeureum Sadu (Soreang)": "Cisondari - Pasirjambu",
+
+    # 5. Aliran Sungai Lainnya / Lokal -> Bojongsoang
+    "Bojongsoang": "Bojongsoang",
+    "Cigede - Komplek Radio": "Bojongsoang",
+    "Cijalupang - Peundeuy": "Bojongsoang",
+    "Cipaku - Paseh": "Bojongsoang"
+}
+
 @st.cache_data
 def load_data():
-    # Daftar kecamatan tambahan sesuai permintaan user
-    kecamatan_baru = [
-        "Mangalayang", "Jatiroke", "Arjasari", "Rancaupas", "Cileunca", 
-        "Kertamanah", "Cisanti", "Kertasari", "Ciluluk", "Cipanas", 
-        "Cisondari", "Hantap", "Cipaku Paseh"
-    ]
+    # Mengambil daftar lokasi utama dari mapping aliran untuk dipastikan masuk ke encoder
+    kecamatan_baru = list(set(pemetaan_aliran.values()))
     
     try:
         df = pd.read_csv("Data Banjir Daleuhlkolot - Sheet1.csv")
@@ -45,10 +80,10 @@ def load_data():
             df[col] = df[col].astype(str).str.replace("-", "0").str.strip()
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
-    # Encoding Kecamatan (Menggabungkan data CSV + daftar baru)
+    # Encoding Kecamatan
     df["Kecamatan"] = df["Kecamatan"].astype(str).str.strip()
     
-    # Ambil kecamatan unik dari CSV dan gabungkan dengan daftar baru, lalu buang duplikat
+    # Ambil kecamatan unik dari CSV dan gabungkan dengan lokasi utama baru
     kecamatan_list = sorted(list(set(df["Kecamatan"].unique().tolist() + kecamatan_baru)))
     
     kec_mapping = {k: i for i, k in enumerate(kecamatan_list)}
@@ -70,24 +105,20 @@ X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42, stratify=y
 )
 
-# Menghitung rasio kelas untuk fitur scale_pos_weight di XGBoost
-# Ini menggantikan fungsi SMOTE untuk menangani data timpang
 jumlah_aman = (y_train == 0).sum()
 jumlah_banjir = (y_train == 1).sum()
 rasio_imbalance = jumlah_aman / jumlah_banjir if jumlah_banjir > 0 else 1
 
-# Membangun model XGBoost
 model = XGBClassifier(
     n_estimators=100,
-    scale_pos_weight=rasio_imbalance, # Otomatis menyeimbangkan kelas Banjir
+    scale_pos_weight=rasio_imbalance,
     random_state=42,
     learning_rate=0.1,
-    max_depth=4, # Dibatasi agar tidak menghafal (overfitting) dan mengurangi alarm palsu
+    max_depth=4,
     eval_metric='logloss'
 )
 model.fit(X_train, y_train)
 
-# Evaluasi Lengkap
 y_pred = model.predict(X_test)
 akurasi = accuracy_score(y_test, y_pred)
 presisi = precision_score(y_test, y_pred, zero_division=0)
@@ -96,7 +127,6 @@ f1 = f1_score(y_test, y_pred, zero_division=0)
 cm = confusion_matrix(y_test, y_pred)
 report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
 
-# Ambil nilai Recall khusus untuk Kelas 1 (Banjir)
 try:
     recall_banjir = report['1']['recall']
 except KeyError:
@@ -108,7 +138,7 @@ try:
 except:
     pass
 
-st.title("Sistem Peringatan Dini Banjir")
+st.title("Sistem Peringatan Dini Banjir Berbasis Aliran Sungai")
 st.markdown("---")
 
 # FITUR 1: Kondisi Real-time (Simulasi)
@@ -143,8 +173,10 @@ if st.button("Cek Kondisi Terkini dari BMKG (Simulasi)"):
     tgl_str = f"{wib_now.day} {bulan_indo[wib_now.month]} {wib_now.year}"
     jam_str = wib_now.strftime("%H:%M WIB")
     
-    nama_kec = random.choice(list(kecamatan_mapping.keys()))
-    kode_kec = kecamatan_mapping[nama_kec]
+    # Pilih lokasi random dari seluruh lokasi yang ada di kamus
+    nama_lokasi = random.choice(list(pemetaan_aliran.keys()))
+    lokasi_utama = pemetaan_aliran[nama_lokasi]
+    kode_kec = kecamatan_mapping[lokasi_utama]
     
     input_sim = pd.DataFrame([[
         kode_kec, sim_hujan, sim_debit, sim_muka, sim_tinggi
@@ -167,7 +199,7 @@ if st.button("Cek Kondisi Terkini dari BMKG (Simulasi)"):
     <div style="padding: 15px; border-radius: 10px; background-color: {bg_color}; border: 1px solid {status_color};">
         <h3 style="color: {status_color}; margin:0;">{icon} Status: {status_text}</h3>
         <p style="font-size: 16px; margin-top: 10px; color: #333;">
-            <b>Kondisi Kecamatan {nama_kec} saat ini {status_text.lower()}.</b><br>
+            <b>Kondisi Wilayah {nama_lokasi} (Aliran {lokasi_utama}) saat ini {status_text.lower()}.</b><br>
             Tanggal: <b>{tgl_str}</b> <br>
             Jam: <b>{jam_str}</b>
         </p>
@@ -186,9 +218,44 @@ st.divider()
 st.subheader("Prediksi Manual")
 st.write("Masukkan parameter di bawah ini untuk melakukan prediksi manual.")
 
+# Dropdown kecamatan (menampilkan SEMUA daftar anak sungai + utama)
+lokasi_select = st.selectbox("Pilih Lokasi (Kecamatan/Daerah)", options=list(pemetaan_aliran.keys()))
+
+c1, c2 = st.columns(2)
+with c1:
+    curah_hujan = st.number_input("Curah Hujan (mm)", min_value=0.0, step=0.1)
+    debit_air = st.number_input("Debit Air (m³/s)", min_value=0.0, step=0.1)
+with c2:
+    muka_air = st.number_input("Tinggi Muka Air (m)", min_value=0.0, step=0.1)
+    tinggi_banjir = st.number_input("Tinggi Genangan Air (m)", min_value=0.0, max_value=5.0, step=0.01)
+
+if st.button("🔍 Jalankan Prediksi Manual", use_container_width=True):
+    # Ambil lokasi acuan utama dari dictionary
+    lokasi_utama = pemetaan_aliran[lokasi_select]
+    kode_kec = kecamatan_mapping[lokasi_utama]
+    
+    input_data = pd.DataFrame([[
+        kode_kec,
+        curah_hujan,
+        debit_air,
+        muka_air,
+        tinggi_banjir
+    ]], columns=features)
+
+    prediction = model.predict(input_data)[0]
+    probability = model.predict_proba(input_data)[0][1]
+
+    st.subheader("Hasil Analisis:")
+    st.info(f"ℹ️ Titik analisis dialihkan ke data stasiun utama: **{lokasi_utama}**")
+    if prediction == 1:
+        st.error(f"⚠️ **POTENSI BANJIR TINGGI di {lokasi_select}** (Probabilitas: {probability:.2%})")
+    else:
+        st.success(f"✅ **TIDAK ADA POTENSI BANJIR di {lokasi_select}** (Probabilitas: {1-probability:.2%})")
+
+st.divider()
+
 # FITUR 3: Statistik Model (Expander)
 with st.expander("📊 Lihat Detail Performa Model (XGBoost)"):
-    
     target_color = "normal" if recall_banjir > 0.50 else "off"
     st.metric(label="🎯 Kemampuan Mendeteksi Banjir (Recall Kelas 1 - Target > 50%)", 
               value=f"{recall_banjir:.2%}", 
@@ -196,7 +263,6 @@ with st.expander("📊 Lihat Detail Performa Model (XGBoost)"):
               delta_color=target_color)
     st.markdown("---")
     
-    # Baris Pertama: Metric Utama
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Akurasi Keseluruhan", f"{akurasi:.2%}")
     m2.metric("Precision", f"{presisi:.2%}")
@@ -204,10 +270,7 @@ with st.expander("📊 Lihat Detail Performa Model (XGBoost)"):
     m4.metric("F1-Score", f"{f1:.2%}")
     
     st.divider()
-    
-    # Baris Kedua: Confusion Matrix & Detail Report
     col_cm, col_rep = st.columns([1, 1.5])
-    
     with col_cm:
         st.write("**Confusion Matrix:**")
         if cm.shape == (2, 2):
@@ -227,32 +290,3 @@ with st.expander("📊 Lihat Detail Performa Model (XGBoost)"):
     **Catatan Algoritma:**
     Model ini menggunakan **XGBoost** dengan fitur `scale_pos_weight`. Model secara otomatis memberikan bobot lebih besar pada data 'Banjir' tanpa perlu membuat data sintetik, sehingga diharapkan dapat mengurangi angka alarm palsu (False Positives) namun tetap mempertahankan sensitivitas deteksi.
     """)
-
-# Dropdown kecamatan
-kecamatan_select = st.selectbox("Pilih Kecamatan", options=list(kecamatan_mapping.keys()))
-
-c1, c2 = st.columns(2)
-with c1:
-    curah_hujan = st.number_input("Curah Hujan (mm)", min_value=0.0, step=0.1)
-    debit_air = st.number_input("Debit Air (m³/s)", min_value=0.0, step=0.1)
-with c2:
-    muka_air = st.number_input("Tinggi Muka Air (m)", min_value=0.0, step=0.1)
-    tinggi_banjir = st.number_input("Tinggi Genangan Air (m)", min_value=0.0, max_value=5.0, step=0.01)
-
-if st.button("🔍 Jalankan Prediksi Manual", use_container_width=True):
-    input_data = pd.DataFrame([[
-        kecamatan_mapping[kecamatan_select],
-        curah_hujan,
-        debit_air,
-        muka_air,
-        tinggi_banjir
-    ]], columns=features)
-
-    prediction = model.predict(input_data)[0]
-    probability = model.predict_proba(input_data)[0][1]
-
-    st.subheader("Hasil Analisis:")
-    if prediction == 1:
-        st.error(f"⚠️ **POTENSI BANJIR TINGGI** (Probabilitas: {probability:.2%})")
-    else:
-        st.success(f"✅ **TIDAK ADA POTENSI BANJIR** (Probabilitas: {1-probability:.2%})")
