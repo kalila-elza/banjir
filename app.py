@@ -4,10 +4,9 @@ import numpy as np
 import random
 from datetime import datetime, timedelta
 from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report, precision_score, recall_score, f1_score
-# Tambahan import untuk augmentasi data
-from imblearn.over_sampling import SMOTE
+# Import algoritma XGBoost
+from xgboost import XGBClassifier
 
 st.set_page_config(
     page_title="Prediksi Banjir Dayeuhkolot",
@@ -17,6 +16,7 @@ st.set_page_config(
 
 @st.cache_data
 def load_data():
+    # Daftar kecamatan tambahan sesuai permintaan user
     kecamatan_baru = [
         "Mangalayang", "Jatiroke", "Arjasari", "Rancaupas", "Cileunca", 
         "Kertamanah", "Cisanti", "Kertasari", "Ciluluk", "Cipanas", 
@@ -29,22 +29,28 @@ def load_data():
         st.error("File CSV tidak ditemukan! Pastikan file berada di folder yang sama.")
         return pd.DataFrame(), {}
 
+    # Bersihkan nama kolom
     df.columns = df.columns.str.strip()
 
+    # Bersihkan Target
     df["Banjir Ya/Tidak"] = df["Banjir Ya/Tidak"].astype(str).str.strip().str.lower()
     mapping_target = {"ya": 1, "1": 1, "0": 0, "tidak": 0}
     df["Banjir Ya/Tidak"] = df["Banjir Ya/Tidak"].map(mapping_target)
     df = df.dropna(subset=["Banjir Ya/Tidak"])
 
+    # Bersihkan Fitur Numerik
     cols_numerik = ["Curah Hujan", "Debit Air", "Muka Air", "Tinggi Banjir"]
     for col in cols_numerik:
         if col in df.columns:
             df[col] = df[col].astype(str).str.replace("-", "0").str.strip()
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
+    # Encoding Kecamatan (Menggabungkan data CSV + daftar baru)
     df["Kecamatan"] = df["Kecamatan"].astype(str).str.strip()
     
+    # Ambil kecamatan unik dari CSV dan gabungkan dengan daftar baru, lalu buang duplikat
     kecamatan_list = sorted(list(set(df["Kecamatan"].unique().tolist() + kecamatan_baru)))
+    
     kec_mapping = {k: i for i, k in enumerate(kecamatan_list)}
     df["Kecamatan_Enc"] = df["Kecamatan"].map(kec_mapping)
 
@@ -64,35 +70,33 @@ X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42, stratify=y
 )
 
-# AUGMENTASI DATA DENGAN SMOTE (Rasio diturunkan)
-# sampling_strategy=0.3 artinya kelas minoritas (Banjir) akan ditambah 
-# sampai jumlahnya 30% dari kelas mayoritas (Aman)
-smote = SMOTE(sampling_strategy=0.3, random_state=42)
+# Menghitung rasio kelas untuk fitur scale_pos_weight di XGBoost
+# Ini menggantikan fungsi SMOTE untuk menangani data timpang
+jumlah_aman = (y_train == 0).sum()
+jumlah_banjir = (y_train == 1).sum()
+rasio_imbalance = jumlah_aman / jumlah_banjir if jumlah_banjir > 0 else 1
 
-try:
-    X_train_balanced, y_train_balanced = smote.fit_resample(X_train, y_train)
-except ValueError:
-    # Fallback jika data terlalu sedikit untuk di-SMOTE
-    X_train_balanced, y_train_balanced = X_train, y_train
-    st.warning("Data latih terlalu sedikit untuk augmentasi SMOTE. Menggunakan data asli.")
+# Membangun model XGBoost
+model = XGBClassifier(
+    n_estimators=100,
+    scale_pos_weight=rasio_imbalance, # Otomatis menyeimbangkan kelas Banjir
+    random_state=42,
+    learning_rate=0.1,
+    max_depth=4, # Dibatasi agar tidak menghafal (overfitting) dan mengurangi alarm palsu
+    eval_metric='logloss'
+)
+model.fit(X_train, y_train)
 
-# Membangun model
-# Note: Saya menghilangkan class_weight='balanced' agar model tidak 
-# memberikan penalti berlebihan yang memicu alarm palsu
-model = RandomForestClassifier(n_estimators=100, random_state=42)
-model.fit(X_train_balanced, y_train_balanced)
-
-# Evaluasi
+# Evaluasi Lengkap
 y_pred = model.predict(X_test)
 akurasi = accuracy_score(y_test, y_pred)
 presisi = precision_score(y_test, y_pred, zero_division=0)
-recall_macro = recall_score(y_test, y_pred, zero_division=0) # Rata-rata keseluruhan
+recall_macro = recall_score(y_test, y_pred, zero_division=0)
 f1 = f1_score(y_test, y_pred, zero_division=0)
 cm = confusion_matrix(y_test, y_pred)
 report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
 
 # Ambil nilai Recall khusus untuk Kelas 1 (Banjir)
-# Ini adalah metrik terpenting sesuai permintaanmu (>50%)
 try:
     recall_banjir = report['1']['recall']
 except KeyError:
@@ -183,9 +187,8 @@ st.subheader("Prediksi Manual")
 st.write("Masukkan parameter di bawah ini untuk melakukan prediksi manual.")
 
 # FITUR 3: Statistik Model (Expander)
-with st.expander("📊 Lihat Detail Performa Model (Setelah Data Diseimbangkan)"):
+with st.expander("📊 Lihat Detail Performa Model (XGBoost)"):
     
-    # Highlight Target Pengguna: Recall Banjir
     target_color = "normal" if recall_banjir > 0.50 else "off"
     st.metric(label="🎯 Kemampuan Mendeteksi Banjir (Recall Kelas 1 - Target > 50%)", 
               value=f"{recall_banjir:.2%}", 
@@ -221,8 +224,8 @@ with st.expander("📊 Lihat Detail Performa Model (Setelah Data Diseimbangkan)"
         st.dataframe(report_df.style.format(precision=2))
 
     st.info("""
-    **Catatan Augmentasi Data:**
-    Model ini telah dilatih menggunakan metode **SMOTE** untuk membuat data sintetis pada kelas 'Banjir', sehingga dataset seimbang saat pelatihan. Ini membantu meningkatkan *Recall* pada kelas 'Banjir'.
+    **Catatan Algoritma:**
+    Model ini menggunakan **XGBoost** dengan fitur `scale_pos_weight`. Model secara otomatis memberikan bobot lebih besar pada data 'Banjir' tanpa perlu membuat data sintetik, sehingga diharapkan dapat mengurangi angka alarm palsu (False Positives) namun tetap mempertahankan sensitivitas deteksi.
     """)
 
 # Dropdown kecamatan
