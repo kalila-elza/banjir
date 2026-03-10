@@ -75,7 +75,7 @@ def load_data():
         "Kertasari": "Data Lengkap - kertasari (1).csv",
         "Cileunca": "Data Lengkap - cileunca (1).csv",
         "Kertamanah": "Data Lengkap - kertamanah (1).csv",
-        "Cipanas": "Cipanas - Margamukti.xlsx",
+        "Cipanas": "Ciapanas - Margamukti.xlsx",
         "Hantap": "Hantap.xlsx",
         "Ciluluk": "CILULUK PASEH.csv",
         "Cisondari": "Cisondari.xlsx",
