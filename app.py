@@ -70,14 +70,43 @@ koordinat_stasiun = {
 
 @st.cache_data
 def load_data():
-    kecamatan_baru = list(set(pemetaan_aliran.values()))
-    
-    try:
-        df = pd.read_csv("Data Banjir Daleuhlkolot - Sheet1.csv")
-    except FileNotFoundError:
+    file_mapping = {
+        "Situ Cisanti": "Data Lengkap - cisanti (1).csv",
+        "Kertasari": "Data Lengkap - kertasari (1).csv",
+        "Cileunca": "Data Lengkap - cileunca (1).csv",
+        "Kertamanah": "Data Lengkap - kertamanah (1).csv",
+        "Cipanas": "cipanas - Margamukti.xlsx",
+        "Hantap": "Hantap.xlsx",
+        "Ciluluk": "CILULUK PASEH.csv",
+        "Cisondari": "Cisondari.xlsx",
+        "Cipaku Paseh": "Cipaku-Paseh.xlsx",
+        "Bojongsoang": "Bojongsoang.csv",
+        "Dayeuhkolot": "Data Banjir Daleuhlkolot - Sheet1.csv"
+    }
+
+    all_dfs = []
+
+    for stasiun, nama_file in file_mapping.items():
+        try:
+            df_temp = pd.read_csv(nama_file)
+
+            df_temp.columns = df_temp.columns.str.strip()
+            if "Banjir Ya/Tidak" not in df_temp.columns:
+                for col in df_temp.columns:
+                    if "banjir" in col.lower() and "tinggi" not in col.lower():
+                        df_temp.rename(columns={col: "Banjir Ya/Tidak"}, inplace=True)
+                        break
+            df_temp["Kecamatan"] = stasiun
+
+            all_dfs.append(df_temp)
+        except FileNotFoundError:
+            st.warning(f"⚠️ File '{nama_file}' untuk stasiun '{stasiun}' tidak ditemukan. Pastikan namanya benar dan ada di folder.")
+
+    if not all_dfs:
         return pd.DataFrame(), {}
 
-    df.columns = df.columns.str.strip()
+    df = pd.concat(all_dfs, ignore_index=True)
+
     df["Banjir Ya/Tidak"] = df["Banjir Ya/Tidak"].astype(str).str.strip().str.lower()
     mapping_target = {"ya": 1, "1": 1, "0": 0, "tidak": 0}
     df["Banjir Ya/Tidak"] = df["Banjir Ya/Tidak"].map(mapping_target)
@@ -86,13 +115,15 @@ def load_data():
     cols_numerik = ["Curah Hujan", "Debit Air", "Muka Air", "Tinggi Banjir"]
     for col in cols_numerik:
         if col in df.columns:
-            df[col] = df[col].astype(str).str.replace("-", "0").str.strip()
+            # Ubah koma jadi titik (jika ada format indo), lalu ubah ke numerik
+            df[col] = df[col].astype(str).str.replace("-", "0").str.replace(",", ".").str.strip()
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
+    # Mapping Encoding Kecamatan ke Angka
     df["Kecamatan"] = df["Kecamatan"].astype(str).str.strip()
-    kecamatan_list = sorted(list(set(df["Kecamatan"].unique().tolist() + kecamatan_baru)))
-    kec_mapping = {k: i for i, k in enumerate(kecamatan_list)}
-    df["Kecamatan_Enc"] = df["Kecamatan"].map(kec_mapping)
+    stasiun_acuan_unik = sorted(list(set(pemetaan_aliran.values())))
+    kec_mapping = {k: i for i, k in enumerate(stasiun_acuan_unik)}
+    df["Kecamatan_Enc"] = df["Kecamatan"].map(kec_mapping).fillna(0)
 
     return df, kec_mapping
 
