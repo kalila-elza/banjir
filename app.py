@@ -92,11 +92,18 @@ def load_data():
             if nama_file.endswith('.xlsx'):
                 df_temp = pd.read_excel(nama_file)
             else:
-                # Blok Try-Except untuk menangani Error Unicode pada CSV
+                # Blok Try-Except Berlapis "Anti-Error" untuk menangani Unicode pada CSV
                 try:
                     df_temp = pd.read_csv(nama_file, encoding='utf-8')
                 except UnicodeDecodeError:
-                    df_temp = pd.read_csv(nama_file, encoding='latin1')
+                    try:
+                        df_temp = pd.read_csv(nama_file, encoding='latin1')
+                    except UnicodeDecodeError:
+                        try:
+                            df_temp = pd.read_csv(nama_file, encoding='utf-16')
+                        except UnicodeDecodeError:
+                            # Jurus terakhir: paksa baca dan abaikan karakter yang rusak
+                            df_temp = pd.read_csv(nama_file, encoding='utf-8', encoding_errors='replace')
 
             df_temp.columns = df_temp.columns.str.strip()
             if "Banjir Ya/Tidak" not in df_temp.columns:
