@@ -146,7 +146,7 @@ tab1, tab2, tab3 = st.tabs(["Prediksi Manual & Peta GIS", "Simulasi Real-time", 
 
 with st.sidebar:
     try:
-        st.image("Dayeuhkolot.jpg", use_container_width=True)
+        st.image("PHOTO-2026-03-10-09-11-05.jpg", use_container_width=True)
     except:
         pass
         
