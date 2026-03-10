@@ -80,7 +80,7 @@ def load_data():
         "Ciluluk": "CILULUK PASEH.csv",
         "Cisondari": "Cisondari.xlsx",
         "Cipaku Paseh": "Cipaku-Paseh.xlsx",
-        "Bojongsoang": "Bojongsoang.csv",
+        "Bojongsoang": "Bojongsoang (2020-2024).xlsx",
         "Dayeuhkolot": "Data Banjir Daleuhlkolot - Sheet1.csv"
     }
 
