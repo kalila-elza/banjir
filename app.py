@@ -88,7 +88,15 @@ def load_data():
 
     for stasiun, nama_file in file_mapping.items():
         try:
-            df_temp = pd.read_csv(nama_file)
+            # Pengecekan Ekstensi File
+            if nama_file.endswith('.xlsx'):
+                df_temp = pd.read_excel(nama_file)
+            else:
+                # Blok Try-Except untuk menangani Error Unicode pada CSV
+                try:
+                    df_temp = pd.read_csv(nama_file, encoding='utf-8')
+                except UnicodeDecodeError:
+                    df_temp = pd.read_csv(nama_file, encoding='latin1')
 
             df_temp.columns = df_temp.columns.str.strip()
             if "Banjir Ya/Tidak" not in df_temp.columns:
@@ -130,7 +138,7 @@ def load_data():
 df, kecamatan_mapping = load_data()
 
 if df.empty:
-    st.error("File CSV tidak ditemukan! Pastikan 'Data Banjir Daleuhlkolot - Sheet1.csv' berada di folder yang sama.")
+    st.error("File dataset tidak ditemukan! Pastikan file berada di folder yang sama.")
     st.stop()
 
 @st.cache_resource
