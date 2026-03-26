@@ -57,39 +57,94 @@ def load_data():
             else:
                 df = pd.read_csv(file, encoding='utf-8', encoding_errors='replace')
 
+            # ================================
+            # 🔥 FIX 1: Bersihin nama kolom
+            # ================================
             df.columns = df.columns.str.strip()
 
-            # cari kolom banjir
+            # ================================
+            # 🔥 FIX 2: Hapus kolom duplikat
+            # ================================
+            df = df.loc[:, ~df.columns.duplicated()]
+
+            # ================================
+            # 🔥 FIX 3: Cari kolom banjir dengan aman
+            # ================================
+            found = False
             for col in df.columns:
-                if "banjir" in col.lower():
+                if "banjir" in col.lower() and "tinggi" not in col.lower():
                     df.rename(columns={col: "Banjir Ya/Tidak"}, inplace=True)
+                    found = True
+                    break
+
+            if not found:
+                continue  # skip file kalau tidak ada label
 
             df["Kecamatan"] = stasiun
+
             dfs.append(df)
 
-        except:
-            pass
+        except Exception as e:
+            st.warning(f"Error di file {file}: {e}")
 
-    df = pd.concat(dfs, ignore_index=True)
+    # ================================
+    # 🔥 FIX 4: Cegah concat kosong
+    # ================================
+    if len(dfs) == 0:
+        return pd.DataFrame(), {}
 
-    # target cleaning
-    df["Banjir Ya/Tidak"] = df["Banjir Ya/Tidak"].astype(str).str.lower()
-    df["Banjir Ya/Tidak"] = df["Banjir Ya/Tidak"].map({"ya":1,"tidak":0,"1":1,"0":0})
+    # ================================
+    # 🔥 FIX 5: Samakan kolom antar df
+    # ================================
+    all_columns = set()
+    for d in dfs:
+        all_columns.update(d.columns)
+
+    aligned_dfs = []
+    for d in dfs:
+        for col in all_columns:
+            if col not in d.columns:
+                d[col] = np.nan
+        aligned_dfs.append(d)
+
+    # ================================
+    # 🔥 FIX 6: CONCAT AMAN
+    # ================================
+    df = pd.concat(aligned_dfs, ignore_index=True)
+
+    # ================================
+    # CLEANING TARGET
+    # ================================
+    df["Banjir Ya/Tidak"] = df["Banjir Ya/Tidak"].astype(str).str.lower().str.strip()
+    df["Banjir Ya/Tidak"] = df["Banjir Ya/Tidak"].map({
+        "ya":1,"tidak":0,"1":1,"0":0
+    })
+
     df = df.dropna(subset=["Banjir Ya/Tidak"])
 
-    # numerik
+    # ================================
+    # NUMERIK
+    # ================================
     cols = ["Curah Hujan","Debit Air","Muka Air","Tinggi Banjir"]
     for c in cols:
         if c in df.columns:
+            df[c] = (
+                df[c]
+                .astype(str)
+                .str.replace(",", ".")
+                .str.replace("-", "0")
+                .str.strip()
+            )
             df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
 
-    # encoding kecamatan
+    # ================================
+    # ENCODING
+    # ================================
     unique_kec = sorted(df["Kecamatan"].unique())
     mapping = {k:i for i,k in enumerate(unique_kec)}
     df["Kecamatan_Enc"] = df["Kecamatan"].map(mapping)
 
     return df, mapping
-
 # ================================
 # BALANCING 1:3
 # ================================
