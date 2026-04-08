@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report, precision_score, recall_score, f1_score
 from xgboost import XGBClassifier
+from imblearn.over_sampling import SMOTE # Library untuk Augmentasi Data
 
 try:
     import folium
@@ -79,7 +80,7 @@ koordinat_stasiun = {
 }
 
 
-# --- SIDEBAR (Dipindah ke atas agar dataset menyesuaikan pilihan user saat load) ---
+# --- SIDEBAR ---
 with st.sidebar:
     try:
         st.image("Dayeuhkolot.jpg", use_container_width=True)
@@ -98,12 +99,11 @@ with st.sidebar:
     tombol_prediksi = st.button("🔍 Jalankan Prediksi", use_container_width=True, type="primary")
 
 
-# --- FUNGSI LOAD DATA (Menyesuaikan dengan pilihan lokasi) ---
+# --- FUNGSI LOAD DATA ---
 @st.cache_data
 def load_data(lokasi_terpilih):
     kecamatan_baru = list(set(pemetaan_aliran.values()))
     
-    # 1. Mapping dari keyword lokasi ke nama file spesifik (Sesuai Screenshot)
     file_spesifik = {
         "Ciluluk": "Ciluluk Revisi.csv",
         "Cipanas": "Cipanas Revisi.xlsx",
@@ -112,18 +112,16 @@ def load_data(lokasi_terpilih):
         "Hantap": "Hantap Revisi.xlsx",
         "Kertasari": "Kertasari Revisi.csv",
         "Kertamanah": "Ketramanah Revisi.csv", 
-        "Kertamanik": "Ketramanah Revisi.csv" # Toleransi penamaan
+        "Kertamanik": "Ketramanah Revisi.csv" 
     }
     
     file_target = None
     
-    # 2. Cek apakah ada file spesifik langsung dari kecamatannya
     for key, filename in file_spesifik.items():
         if key.lower() in lokasi_terpilih.lower():
             file_target = filename
             break
             
-    # 3. Cek dari aliran sungainya jika file spesifik tidak ada (Fallback 1)
     if not file_target:
         aliran_utama = pemetaan_aliran.get(lokasi_terpilih, "")
         for key, filename in file_spesifik.items():
@@ -131,7 +129,6 @@ def load_data(lokasi_terpilih):
                 file_target = filename
                 break
                 
-    # 4. Gunakan file master/gabungan jika tetap tidak ada (Fallback 2)
     if not file_target:
         file_target = "Data Banjir Kabupaten Bandung.xlsx"
         
@@ -139,7 +136,7 @@ def load_data(lokasi_terpilih):
         if file_target.endswith('.csv'):
             df = pd.read_csv(file_target)
         else:
-            df = pd.read_excel(file_target) # Menggunakan Pandas untuk .xlsx
+            df = pd.read_excel(file_target)
     except Exception as e:
         return pd.DataFrame(), {}, file_target
 
@@ -151,7 +148,7 @@ def load_data(lokasi_terpilih):
         df["Banjir Ya/Tidak"] = df["Banjir Ya/Tidak"].map(mapping_target)
         df = df.dropna(subset=["Banjir Ya/Tidak"])
     else:
-        df["Banjir Ya/Tidak"] = 0 # Mencegah error fatal jika format file ada yang melenceng
+        df["Banjir Ya/Tidak"] = 0
 
     cols_numerik = ["Curah Hujan", "Debit Air", "Muka Air", "Tinggi Banjir"]
     for col in cols_numerik:
@@ -159,7 +156,6 @@ def load_data(lokasi_terpilih):
             df[col] = df[col].astype(str).str.replace("-", "0").str.strip()
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
-    # Antisipasi file revisi jika ada yang tidak punya kolom "Kecamatan"
     if "Kecamatan" not in df.columns:
         df["Kecamatan"] = pemetaan_aliran.get(lokasi_terpilih, "Unknown")
 
@@ -170,17 +166,15 @@ def load_data(lokasi_terpilih):
 
     return df, kec_mapping, file_target
 
-# Mengambil data & file sesuai sidebar yang aktif
 df, kecamatan_mapping, file_loaded = load_data(lokasi_select)
 
 if df.empty:
     st.error(f"Dataset '{file_loaded}' tidak ditemukan! Pastikan file revisi/xlsx tersebut ada di folder yang sama.")
     st.stop()
 
-# --- MODEL TRAINING ---
+# --- MODEL TRAINING DENGAN SMOTE ---
 features = ["Kecamatan_Enc", "Curah Hujan", "Debit Air", "Muka Air", "Tinggi Banjir"]
 
-# Proteksi apabila dataset revisi kehilangan beberapa kolom target numerik utama
 for col in features:
     if col not in df.columns:
         df[col] = 0.0 
@@ -188,20 +182,33 @@ for col in features:
 X = df[features]
 y = df["Banjir Ya/Tidak"].astype(int)
 
-# Stratify=y bisa error jika dataset isinya terlalu sedikit atau hanya 1 class, 
-# Diakali dengan pengecekan aman agar tetap jalan biarpun dataset barunya kecil.
 try:
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
 except ValueError:
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-rasio_imbalance = (y_train == 0).sum() / (y_train == 1).sum() if (y_train == 1).sum() > 0 else 1
+# --- PROSES AUGMENTASI DATA (SMOTE) ---
+n_minority = (y_train == 1).sum()
 
+if n_minority > 1:
+    # Mengatur k_neighbors secara dinamis untuk mencegah error jika data banjir sangat sedikit
+    safe_k = min(5, n_minority - 1)
+    if safe_k < 1: safe_k = 1
+    
+    smote = SMOTE(random_state=42, k_neighbors=safe_k)
+    X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
+    status_smote = f"✅ SMOTE Aktif: Data kelas banjir berhasil digandakan menjadi {(y_train_resampled == 1).sum()} sampel."
+else:
+    X_train_resampled, y_train_resampled = X_train, y_train
+    status_smote = "⚠️ SMOTE Tidak Aktif: Data kelas banjir terlalu sedikit (kurang dari 2) untuk digandakan."
+# --------------------------------------
+
+# Model XGBoost (scale_pos_weight dihapus karena data sudah seimbang)
 model = XGBClassifier(
-    n_estimators=100, scale_pos_weight=rasio_imbalance,
+    n_estimators=100,
     random_state=42, learning_rate=0.1, max_depth=4, eval_metric='logloss'
 )
-model.fit(X_train, y_train)
+model.fit(X_train_resampled, y_train_resampled)
 
 y_pred = model.predict(X_test)
 akurasi = accuracy_score(y_test, y_pred)
@@ -216,11 +223,9 @@ recall_banjir = report['1']['recall'] if '1' in report else 0.0
 st.title(" Sistem Peringatan Dini Banjir Berbasis Aliran Sungai")
 st.markdown("Pantau dan prediksi potensi banjir di wilayah Kabupaten Bandung berdasarkan data hidrologis dan spasial.")
 
-# Pemberitahuan UI tentang dataset mana yang sedang aktif dipakai
 st.info(f"📁 **Dataset yang sedang dipakai:** `{file_loaded}` *(Menyesuaikan rute lokasi: {lokasi_select})*")
 
 st.markdown("---")
-
 
 tab1, tab2, tab3 = st.tabs(["Prediksi Manual & Peta GIS", " Simulasi Real-time", "Performa Model AI"])
 
@@ -259,12 +264,10 @@ with tab1:
         lokasi_utama_peta = pemetaan_aliran.get(lokasi_select, "Dayeuhkolot")
         
         if HAS_FOLIUM:
-            koor = koordinat_stasiun.get(lokasi_utama_peta, [-6.9881, 107.6281]) # Default ke Dayeuhkolot jika tidak ada
+            koor = koordinat_stasiun.get(lokasi_utama_peta, [-6.9881, 107.6281]) 
             
-            # Membuat Peta
             m = folium.Map(location=koor, zoom_start=13, tiles="CartoDB positron")
             
-            # Menambahkan Marker lokasi sungai
             folium.Marker(
                 koor, 
                 popup=f"Stasiun Acuan: {lokasi_utama_peta}", 
@@ -272,19 +275,17 @@ with tab1:
                 icon=folium.Icon(color="red", icon="info-sign")
             ).add_to(m)
             
-            # Menambahkan radius bahaya merah
             folium.Circle(
                 location=koor,
-                radius=1500, # Radius 1.5 KM
+                radius=1500,
                 color='crimson',
                 fill=True,
                 fill_color='crimson'
             ).add_to(m)
 
-            # Menampilkan di Streamlit
             st_folium(m, width=500, height=350, returned_objects=[])
         else:
-            st.warning("Library 'folium' dan 'streamlit-folium' belum terinstal. Buka terminal dan jalankan `pip install folium streamlit-folium` untuk melihat peta.")
+            st.warning("Library 'folium' dan 'streamlit-folium' belum terinstal.")
 
 with tab2:
     st.subheader("Pantauan Sensor Virtual (Simulasi Real-time)")
@@ -330,6 +331,9 @@ with tab2:
 with tab3:
     st.subheader("Detail Evaluasi Algoritma XGBoost")
     
+    # Menampilkan status SMOTE di dashboard
+    st.caption(status_smote)
+    
     target_color = "normal" if recall_banjir > 0.50 else "off"
     st.metric(label="🎯 Kemampuan Mendeteksi Banjir (Recall Kelas 1 - Target > 50%)", 
               value=f"{recall_banjir:.2%}", 
@@ -354,4 +358,4 @@ with tab3:
         st.write("**Detail Laporan Klasifikasi:**")
         st.dataframe(pd.DataFrame(report).transpose().style.format(precision=2))
 
-    st.info("**Catatan Algoritma:** Model ini menggunakan **XGBoost** dengan parameter `scale_pos_weight` untuk mendeteksi data yang timpang (*imbalanced*).")
+    st.info("**Catatan Algoritma:** Model ini menggunakan kombinasi **XGBoost** dan teknik augmentasi data **SMOTE** untuk menangani klasifikasi data yang timpang (*imbalanced*).")
