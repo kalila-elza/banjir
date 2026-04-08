@@ -78,70 +78,8 @@ koordinat_stasiun = {
     "Bojongsoang": [-6.9740, 107.6400]
 }
 
-@st.cache_data
-def load_data():
-    kecamatan_baru = list(set(pemetaan_aliran.values()))
-    
-    try:
-        df = pd.read_csv("Data Banjir Daleuhlkolot - Sheet1.csv")
-    except FileNotFoundError:
-        return pd.DataFrame(), {}
 
-    df.columns = df.columns.str.strip()
-    df["Banjir Ya/Tidak"] = df["Banjir Ya/Tidak"].astype(str).str.strip().str.lower()
-    mapping_target = {"ya": 1, "1": 1, "0": 0, "tidak": 0}
-    df["Banjir Ya/Tidak"] = df["Banjir Ya/Tidak"].map(mapping_target)
-    df = df.dropna(subset=["Banjir Ya/Tidak"])
-
-    cols_numerik = ["Curah Hujan", "Debit Air", "Muka Air", "Tinggi Banjir"]
-    for col in cols_numerik:
-        if col in df.columns:
-            df[col] = df[col].astype(str).str.replace("-", "0").str.strip()
-            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-
-    df["Kecamatan"] = df["Kecamatan"].astype(str).str.strip()
-    kecamatan_list = sorted(list(set(df["Kecamatan"].unique().tolist() + kecamatan_baru)))
-    kec_mapping = {k: i for i, k in enumerate(kecamatan_list)}
-    df["Kecamatan_Enc"] = df["Kecamatan"].map(kec_mapping)
-
-    return df, kec_mapping
-
-df, kecamatan_mapping = load_data()
-
-if df.empty:
-    st.error("File CSV tidak ditemukan! Pastikan 'Data Banjir Daleuhlkolot - Sheet1.csv' berada di folder yang sama.")
-    st.stop()
-
-# --- MODEL TRAINING ---
-features = ["Kecamatan_Enc", "Curah Hujan", "Debit Air", "Muka Air", "Tinggi Banjir"]
-X = df[features]
-y = df["Banjir Ya/Tidak"].astype(int)
-
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
-rasio_imbalance = (y_train == 0).sum() / (y_train == 1).sum() if (y_train == 1).sum() > 0 else 1
-
-model = XGBClassifier(
-    n_estimators=100, scale_pos_weight=rasio_imbalance,
-    random_state=42, learning_rate=0.1, max_depth=4, eval_metric='logloss'
-)
-model.fit(X_train, y_train)
-
-y_pred = model.predict(X_test)
-akurasi = accuracy_score(y_test, y_pred)
-presisi = precision_score(y_test, y_pred, zero_division=0)
-recall_macro = recall_score(y_test, y_pred, zero_division=0)
-f1 = f1_score(y_test, y_pred, zero_division=0)
-cm = confusion_matrix(y_test, y_pred)
-report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
-recall_banjir = report['1']['recall'] if '1' in report else 0.0
-
-st.title(" Sistem Peringatan Dini Banjir Berbasis Aliran Sungai")
-st.markdown("Pantau dan prediksi potensi banjir di wilayah Kabupaten Bandung berdasarkan data hidrologis dan spasial.")
-st.markdown("---")
-
-
-tab1, tab2, tab3 = st.tabs(["Prediksi Manual & Peta GIS", " Simulasi Real-time", "Performa Model AI"])
-
+# --- SIDEBAR (Dipindah ke atas agar dataset menyesuaikan pilihan user saat load) ---
 with st.sidebar:
     try:
         st.image("Dayeuhkolot.jpg", use_container_width=True)
@@ -159,14 +97,141 @@ with st.sidebar:
     
     tombol_prediksi = st.button("🔍 Jalankan Prediksi", use_container_width=True, type="primary")
 
+
+# --- FUNGSI LOAD DATA (Menyesuaikan dengan pilihan lokasi) ---
+@st.cache_data
+def load_data(lokasi_terpilih):
+    kecamatan_baru = list(set(pemetaan_aliran.values()))
+    
+    # 1. Mapping dari keyword lokasi ke nama file spesifik (Sesuai Screenshot)
+    file_spesifik = {
+        "Ciluluk": "Ciluluk Revisi.csv",
+        "Cipanas": "Cipanas Revisi.xlsx",
+        "Cisondari": "Cisondari Revisi.xlsx",
+        "Dayeuhkolot": "Dayeuhkolot Revisi.xlsx",
+        "Hantap": "Hantap Revisi.xlsx",
+        "Kertasari": "Kertasari Revisi.csv",
+        "Kertamanah": "Ketramanah Revisi.csv", 
+        "Kertamanik": "Ketramanah Revisi.csv" # Toleransi penamaan
+    }
+    
+    file_target = None
+    
+    # 2. Cek apakah ada file spesifik langsung dari kecamatannya
+    for key, filename in file_spesifik.items():
+        if key.lower() in lokasi_terpilih.lower():
+            file_target = filename
+            break
+            
+    # 3. Cek dari aliran sungainya jika file spesifik tidak ada (Fallback 1)
+    if not file_target:
+        aliran_utama = pemetaan_aliran.get(lokasi_terpilih, "")
+        for key, filename in file_spesifik.items():
+            if key.lower() in aliran_utama.lower():
+                file_target = filename
+                break
+                
+    # 4. Gunakan file master/gabungan jika tetap tidak ada (Fallback 2)
+    if not file_target:
+        file_target = "Data Banjir Kabupaten Bandung.xlsx"
+        
+    try:
+        if file_target.endswith('.csv'):
+            df = pd.read_csv(file_target)
+        else:
+            df = pd.read_excel(file_target) # Menggunakan Pandas untuk .xlsx
+    except Exception as e:
+        return pd.DataFrame(), {}, file_target
+
+    df.columns = df.columns.str.strip()
+    
+    if "Banjir Ya/Tidak" in df.columns:
+        df["Banjir Ya/Tidak"] = df["Banjir Ya/Tidak"].astype(str).str.strip().str.lower()
+        mapping_target = {"ya": 1, "1": 1, "0": 0, "tidak": 0}
+        df["Banjir Ya/Tidak"] = df["Banjir Ya/Tidak"].map(mapping_target)
+        df = df.dropna(subset=["Banjir Ya/Tidak"])
+    else:
+        df["Banjir Ya/Tidak"] = 0 # Mencegah error fatal jika format file ada yang melenceng
+
+    cols_numerik = ["Curah Hujan", "Debit Air", "Muka Air", "Tinggi Banjir"]
+    for col in cols_numerik:
+        if col in df.columns:
+            df[col] = df[col].astype(str).str.replace("-", "0").str.strip()
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+
+    # Antisipasi file revisi jika ada yang tidak punya kolom "Kecamatan"
+    if "Kecamatan" not in df.columns:
+        df["Kecamatan"] = pemetaan_aliran.get(lokasi_terpilih, "Unknown")
+
+    df["Kecamatan"] = df["Kecamatan"].astype(str).str.strip()
+    kecamatan_list = sorted(list(set(df["Kecamatan"].unique().tolist() + kecamatan_baru)))
+    kec_mapping = {k: i for i, k in enumerate(kecamatan_list)}
+    df["Kecamatan_Enc"] = df["Kecamatan"].map(kec_mapping)
+
+    return df, kec_mapping, file_target
+
+# Mengambil data & file sesuai sidebar yang aktif
+df, kecamatan_mapping, file_loaded = load_data(lokasi_select)
+
+if df.empty:
+    st.error(f"Dataset '{file_loaded}' tidak ditemukan! Pastikan file revisi/xlsx tersebut ada di folder yang sama.")
+    st.stop()
+
+# --- MODEL TRAINING ---
+features = ["Kecamatan_Enc", "Curah Hujan", "Debit Air", "Muka Air", "Tinggi Banjir"]
+
+# Proteksi apabila dataset revisi kehilangan beberapa kolom target numerik utama
+for col in features:
+    if col not in df.columns:
+        df[col] = 0.0 
+        
+X = df[features]
+y = df["Banjir Ya/Tidak"].astype(int)
+
+# Stratify=y bisa error jika dataset isinya terlalu sedikit atau hanya 1 class, 
+# Diakali dengan pengecekan aman agar tetap jalan biarpun dataset barunya kecil.
+try:
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+except ValueError:
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+rasio_imbalance = (y_train == 0).sum() / (y_train == 1).sum() if (y_train == 1).sum() > 0 else 1
+
+model = XGBClassifier(
+    n_estimators=100, scale_pos_weight=rasio_imbalance,
+    random_state=42, learning_rate=0.1, max_depth=4, eval_metric='logloss'
+)
+model.fit(X_train, y_train)
+
+y_pred = model.predict(X_test)
+akurasi = accuracy_score(y_test, y_pred)
+presisi = precision_score(y_test, y_pred, zero_division=0)
+recall_macro = recall_score(y_test, y_pred, zero_division=0)
+f1 = f1_score(y_test, y_pred, zero_division=0)
+cm = confusion_matrix(y_test, y_pred)
+report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
+recall_banjir = report['1']['recall'] if '1' in report else 0.0
+
+# --- MAIN UI ---
+st.title(" Sistem Peringatan Dini Banjir Berbasis Aliran Sungai")
+st.markdown("Pantau dan prediksi potensi banjir di wilayah Kabupaten Bandung berdasarkan data hidrologis dan spasial.")
+
+# Pemberitahuan UI tentang dataset mana yang sedang aktif dipakai
+st.info(f"📁 **Dataset yang sedang dipakai:** `{file_loaded}` *(Menyesuaikan rute lokasi: {lokasi_select})*")
+
+st.markdown("---")
+
+
+tab1, tab2, tab3 = st.tabs(["Prediksi Manual & Peta GIS", " Simulasi Real-time", "Performa Model AI"])
+
 with tab1:
     col_hasil, col_peta = st.columns([1, 1.2]) 
     
     with col_hasil:
         st.subheader("Hasil Analisis")
         if tombol_prediksi:
-            lokasi_utama = pemetaan_aliran[lokasi_select]
-            kode_kec = kecamatan_mapping[lokasi_utama]
+            lokasi_utama = pemetaan_aliran.get(lokasi_select, "Dayeuhkolot")
+            kode_kec = kecamatan_mapping.get(lokasi_utama, 0)
             
             input_data = pd.DataFrame([[kode_kec, curah_hujan, debit_air, muka_air, tinggi_banjir]], columns=features)
             prediction = model.predict(input_data)[0]
@@ -191,7 +256,7 @@ with tab1:
 
     with col_peta:
         st.subheader("Peta Pantauan Sungai (GIS)")
-        lokasi_utama_peta = pemetaan_aliran[lokasi_select]
+        lokasi_utama_peta = pemetaan_aliran.get(lokasi_select, "Dayeuhkolot")
         
         if HAS_FOLIUM:
             koor = koordinat_stasiun.get(lokasi_utama_peta, [-6.9881, 107.6281]) # Default ke Dayeuhkolot jika tidak ada
@@ -238,7 +303,7 @@ with tab2:
         
         nama_lokasi = random.choice(list(pemetaan_aliran.keys()))
         lokasi_utama = pemetaan_aliran[nama_lokasi]
-        kode_kec = kecamatan_mapping[lokasi_utama]
+        kode_kec = kecamatan_mapping.get(lokasi_utama, 0)
         
         input_sim = pd.DataFrame([[kode_kec, sim_hujan, sim_debit, sim_muka, sim_tinggi]], columns=features)
         pred_sim = model.predict(input_sim)[0]
